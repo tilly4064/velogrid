@@ -1,0 +1,2822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeloGrid | Brisbane</title>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://basemaps.cartocdn.com" />
+  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #f5f6f7;
+      --panel: #ffffff;
+      --panel-2: #f0f2f4;
+      --border: #d0d7de;
+      --text: #1a1f27;
+      --muted: #57606a;
+      --accent: #008f74;
+      --accent-soft: rgba(0, 143, 116, 0.12);
+      --boundary: #c87000;
+      --bikeway: #008f74;
+      --danger: #d73a2a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body { display: flex; flex-direction: column; }
+
+    .topbar {
+      height: 56px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 18px;
+      background: rgba(255, 255, 255, 0.97);
+      border-bottom: 1px solid var(--border);
+      z-index: 20;
+    }
+
+    .brand { display: flex; flex-direction: column; line-height: 1.05; min-width: 180px; }
+    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.04em; color: var(--accent); }
+    .brand-title span { color: var(--text); }
+    .brand-subtitle { margin-top: 3px; font-size: 11px; color: var(--muted); }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 27px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      white-space: nowrap;
+    }
+
+    .chip strong { color: var(--text); font-weight: 600; }
+    .topbar-spacer { flex: 1; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(0, 143, 116, 0.6);
+    }
+
+    .app-shell { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+
+    .sidebar {
+      width: 340px;
+      flex: 0 0 340px;
+      display: flex;
+      flex-direction: column;
+      background: rgba(255, 255, 255, 0.97);
+      border-right: 1px solid var(--border);
+      z-index: 10;
+    }
+
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border); }
+
+    .tab {
+      appearance: none;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 13px 6px 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .panel { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: none; }
+    .panel.active { display: block; }
+    .panel::-webkit-scrollbar { width: 6px; }
+    .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+    .section { margin-bottom: 22px; }
+
+    .section-title {
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.11em;
+    }
+
+    .info-card, .layer-row, .metric-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .info-card { padding: 13px 14px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .info-card strong { color: var(--text); font-weight: 700; }
+
+    .layer-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .layer-row:hover { background: #e8ecf0; border-color: #c0c8d2; }
+    .layer-row.active { border-color: rgba(0, 143, 116, 0.50); background: var(--accent-soft); }
+
+    .symbol-line { width: 28px; height: 4px; border-radius: 999px; flex: 0 0 auto; }
+
+    .symbol-boundary {
+      background: transparent;
+      border: 2px solid var(--boundary);
+      width: 24px; height: 18px;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .layer-main { flex: 1; min-width: 0; }
+    .layer-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .layer-note { margin-top: 2px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .toggle {
+      width: 36px; height: 20px;
+      border: 0;
+      border-radius: 999px;
+      background: #d0d7de;
+      position: relative;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .toggle::after {
+      content: "";
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 2px; top: 2px;
+      border-radius: 50%;
+      background: #6b7682;
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .toggle.on { background: rgba(0, 143, 116, 0.15); }
+    .toggle.on::after { transform: translateX(16px); background: var(--accent); }
+
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric-grid.three { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .metric-card { padding: 12px; }
+    .metric-card.compact { padding: 10px 8px; }
+    .metric-card.compact .metric-value { font-size: 18px; }
+    .metric-card.compact .metric-label { font-size: 10px; line-height: 1.25; }
+    .metric-caption {
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--muted);
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    /* Traffic update items */
+    .traffic-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .traffic-item {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--muted);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      transition: background 0.15s ease;
+    }
+    .traffic-item:hover { background: #e8ecf0; cursor: pointer; }
+    .traffic-item.selected {
+      background: #e8ecf0;
+      border-color: #ff3b30;
+      box-shadow: 0 0 0 1px rgba(255, 59, 48, 0.4);
+    }
+    .traffic-item.severity-high   { border-left-color: #d7191c; }
+    .traffic-item.severity-medium { border-left-color: #fdae61; }
+    .traffic-item.severity-low    { border-left-color: #8b949e; }
+    .traffic-type {
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+    }
+    .traffic-location { color: var(--muted); margin-top: 2px; }
+    .traffic-meta { color: var(--muted); font-size: 10px; margin-top: 3px; }
+    .traffic-empty {
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .traffic-error {
+      color: #f85149;
+      font-size: 11px;
+      padding: 8px 10px;
+    }
+
+    /* Routing panel */
+    .route-controls { display: flex; flex-direction: column; gap: 6px; }
+    .route-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .route-btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .route-btn:hover { background: #e8ecf0; border-color: #c0c8d2; }
+    .route-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .route-btn.primary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); grid-column: span 2; }
+    .route-btn.primary:hover { background: rgba(0, 143, 116, 0.15); }
+    .route-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .route-btn.clear { color: var(--muted); }
+    .route-status {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 6px 2px 0;
+      line-height: 1.4;
+    }
+    .route-status strong { color: var(--text); }
+
+    .route-results { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .route-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--muted);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .route-card.cycling { border-left-color: var(--accent); }
+    .route-card-label {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      color: var(--text);
+    }
+    .route-card-stats {
+      margin-top: 4px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .route-card-stats span strong { color: var(--text); }
+    .metric-value { font-size: 22px; font-weight: 800; letter-spacing: -0.04em; color: var(--accent); }
+    .metric-label { margin-top: 4px; color: var(--muted); font-size: 11px; }
+
+    .map-wrap { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
+    #map { width: 100%; height: 100%; }
+
+    .map-overlay {
+      position: absolute;
+      right: 64px; top: 16px;   /* clears MapLibre navigation control stack (~36px wide) */
+      width: 260px;
+      max-height: calc(100vh - 130px);  /* leave room above the bottom bar */
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10);
+      z-index: 5;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .overlay-title {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 10px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      flex: 0 0 auto;
+    }
+
+    /* Pinned items (always visible, never collapsed) */
+    .legend-pinned { flex: 0 0 auto; }
+
+    /* Each collapsible legend group */
+    .legend-group { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .legend-group + .legend-group {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .legend-group-header {
+      pointer-events: auto;       /* re-enable clicks on the overlay's no-click background */
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 0;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 10px;
+      font-weight: 800;
+      flex: 0 0 auto;
+      transition: color 0.15s ease;
+    }
+    .legend-group-header:hover { color: var(--text); }
+    .legend-group-header .legend-count { color: #57606a; font-weight: 600; letter-spacing: 0; text-transform: none; }
+    .legend-group-header .legend-chevron {
+      width: 10px; height: 10px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(45deg);
+      transition: transform 0.2s ease;
+      margin-right: 2px;
+      margin-bottom: 2px;
+    }
+    .legend-group.collapsed .legend-group-header .legend-chevron {
+      transform: rotate(-45deg);
+      margin-bottom: -2px;
+    }
+
+    .legend-group-body {
+      margin-top: 8px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .legend-group.collapsed .legend-group-body { display: none; }
+    .legend-group-body::-webkit-scrollbar { width: 4px; }
+    .legend-group-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+    .legend-item { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; font-size: 12px; color: var(--text); }
+    .legend-item:last-child { margin-bottom: 0; }
+
+    .bottom-bar {
+      position: absolute;
+      left: 16px; right: 16px; bottom: 16px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .bottom-pill {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 13px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--muted);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
+    }
+
+    .bottom-pill strong { color: var(--text); }
+
+    .maplibregl-popup-content {
+      background: var(--panel) !important;
+      border: 1px solid var(--border) !important;
+      color: var(--text) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+      padding: 13px 14px !important;
+      font-family: inherit !important;
+      min-width: 240px;
+    }
+
+    .maplibregl-popup-tip { display: none !important; }
+    .popup-title { font-size: 14px; font-weight: 800; margin-bottom: 7px; color: var(--text); }
+    .popup-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; padding: 3px 0; font-size: 12px; line-height: 1.35; }
+    .popup-key { color: var(--muted); }
+    .popup-value { color: var(--text); overflow-wrap: anywhere; }
+
+    .maplibregl-ctrl-group { background: var(--panel) !important; border: 1px solid var(--border) !important; overflow: hidden !important; }
+    .maplibregl-ctrl-group button { background: var(--panel) !important; }
+    .maplibregl-ctrl-group button:hover { background: var(--panel-2) !important; }
+    .maplibregl-ctrl-icon { filter: invert(1) !important; opacity: 0.75 !important; }
+    .maplibregl-ctrl-attrib { background: rgba(255, 255, 255, 0.85) !important; color: var(--muted) !important; }
+    .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
+
+    @media (max-width: 840px) {
+      .sidebar { width: 300px; flex-basis: 300px; }
+      .map-overlay { display: none; }
+      .chip.optional { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-title">Velo<span>Grid</span></div>
+      <div class="brand-subtitle">Brisbane cycling infrastructure explorer</div>
+    </div>
+    <div class="chip"><strong>Study area</strong> Brisbane LGA</div>
+    <div class="chip optional"><strong>Basemap</strong> CARTO Dark Matter</div>
+    <div class="topbar-spacer"></div>
+    <div class="status-dot" aria-hidden="true"></div>
+    <div class="chip" id="load-status">Initialising</div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="sidebar">
+      <div class="tabs">
+        <button class="tab active" data-panel="layers">Layers</button>
+        <button class="tab" data-panel="data">Data</button>
+      </div>
+
+      <section class="panel active" id="panel-layers">
+        <div class="section">
+          <div class="section-title">Map layers</div>
+
+          <div class="info-card" style="margin-bottom: 10px;">
+            <strong>Brisbane boundary</strong><br />
+            Always visible as the fixed study area outline.
+            <div class="layer-note" id="boundary-note" style="margin-top:6px;">Loading official LGA outline</div>
+          </div>
+
+          <div class="layer-row active" data-layer="bikeway-sections">
+            <div class="symbol-line" style="background: var(--bikeway)"></div>
+            <div class="layer-main">
+              <div class="layer-name">Bikeway sections</div>
+              <div class="layer-note" id="bikeway-note">Loading from Brisbane open data API</div>
+            </div>
+            <button class="toggle on" aria-label="Toggle bikeway sections"></button>
+          </div>
+
+          <div class="layer-row" data-layer="road-hierarchy">
+            <div class="symbol-line" style="background: linear-gradient(90deg,#d7191c,#fdae61,#1a9850)"></div>
+            <div class="layer-main">
+              <div class="layer-name">Road hierarchy</div>
+              <div class="layer-note" id="hierarchy-note">~42k segments — off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle road hierarchy"></button>
+          </div>
+
+          <div class="layer-row" data-layer="cyclist-crashes">
+            <div style="width:14px;height:14px;border-radius:999px;background:#ff4d6d;flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Cyclist crashes</div>
+              <div class="layer-note" id="crash-note">Loading Queensland crash data</div>
+            </div>
+            <button class="toggle" aria-label="Toggle cyclist crashes"></button>
+          </div>
+
+          <div class="layer-row" data-layer="bikespot">
+            <div style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#3fb950 50%,#f85149 50%);flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Safe &amp; unsafe spots</div>
+              <div class="layer-note" id="bikespot-note">Crowdsourced perceptions — off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle safe and unsafe spots"></button>
+          </div>
+
+          <div class="layer-row" data-layer="bicycle-racks">
+            <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid #a371f7;flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Bicycle racks</div>
+              <div class="layer-note" id="racks-note">BCC parking infrastructure — off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle bicycle racks"></button>
+          </div>
+
+          <div class="layer-row" data-layer="parks">
+            <div style="width:14px;height:14px;border-radius:3px;background:rgba(63,185,80,0.35);border:1.5px solid #3fb950;flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Parks</div>
+              <div class="layer-note" id="parks-note">BCC park locations — off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle parks"></button>
+          </div>
+
+          <div class="layer-row" data-layer="cycling-to-work">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(135deg,#14532d,#86efac);flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Cycling to work (Census 2021)</div>
+              <div class="layer-note" id="ctw-note">SA2 mode share — off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle cycling to work"></button>
+          </div>
+
+          <div class="layer-row" data-layer="micromobility">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(90deg,#f7a737,#9e3faf);flex:0 0 auto;"></div>
+            <div class="layer-main">
+              <div class="layer-name">Electric micromobility routes</div>
+              <div class="layer-note" id="micro-note">Trip-count heatmap u2014 off by default</div>
+            </div>
+            <button class="toggle" aria-label="Toggle micromobility"></button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Route planner</div>
+          <div class="route-controls">
+            <div class="route-buttons">
+              <button class="route-btn" id="route-set-start" type="button">Set start</button>
+              <button class="route-btn" id="route-set-end" type="button">Set destination</button>
+            </div>
+            <button class="route-btn primary" id="route-compare" type="button" disabled>Get cycling route</button>
+            <button class="route-btn clear" id="route-clear" type="button">Clear</button>
+          </div>
+          <div class="route-status" id="route-status">Click <strong>Set start</strong>, then click on the map.</div>
+          <div class="route-results" id="route-results"></div>
+          <div class="metric-caption">
+            Route from OpenRouteService using OSM cycling data (recommended cycling preference, which biases toward OSM-tagged bike paths and cycleways). It is not a safety guarantee — it reflects a routing preference, not crash risk, and may differ from the displayed BCC bikeway sections.
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">
+            Traffic updates for cyclists
+            <span style="float:right; color:var(--accent); font-weight:600;" id="traffic-status">●</span>
+          </div>
+          <div class="traffic-list" id="traffic-list">
+            <div class="traffic-empty">Loading live updates from QLDTraffic…</div>
+          </div>
+          <div class="metric-caption" id="traffic-caption">
+            Live events from the Department of Transport &amp; Main Roads (QLDTraffic). Relevance is inferred — events are flagged when they are likely to affect cyclists (e.g. road closures, flooding, hazards in suburbs with bikeway infrastructure). Verify locally before relying on this.
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Summary</div>
+          <div class="metric-grid">
+            <div class="metric-card">
+              <div class="metric-value" id="bikeway-km">—</div>
+              <div class="metric-label">km of bikeway</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" id="crash-total">—</div>
+              <div class="metric-label">cyclist crashes</div>
+            </div>
+          </div>
+          <div class="metric-grid three" style="margin-top: 8px;">
+            <div class="metric-card compact">
+              <div class="metric-value" id="crash-fatal" style="color:#d7191c">—</div>
+              <div class="metric-label">Fatal</div>
+            </div>
+            <div class="metric-card compact">
+              <div class="metric-value" id="crash-hosp" style="color:#fdae61">—</div>
+              <div class="metric-label">Hospitalised</div>
+            </div>
+            <div class="metric-card compact">
+              <div class="metric-value" id="crash-other" style="color:#8b949e">—</div>
+              <div class="metric-label">Other</div>
+            </div>
+          </div>
+          <div class="metric-caption">
+            Crash records cover Brisbane LGA cyclist incidents from Jan 2001 to Jun 2024 (QLD Open Data, e88943c0). "Other" combines medical-treatment and minor-injury crashes. Property-damage-only crashes ceased being reported after 2010.
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">About</div>
+          <div class="info-card">
+            <strong>A visual support tool for cycling infrastructure planning.</strong><br /><br />
+            VeloGrid layers Brisbane's cycling infrastructure datasets onto one interactive map — bikeways, crash history, road hierarchy, crowdsourced safety perceptions, and electric micromobility trip patterns. By making these datasets visible together, it helps planners, researchers, and curious riders understand where the network is strong, where gaps exist, and where investment could have the greatest impact on safe cycling expansion.<br /><br />
+            Click any segment for the details behind it, follow the crash hotspots to identify high-risk corridors, and overlay the micromobility trip data to see where riders are already moving — with or without formal infrastructure.<br /><br />
+            <span style="color: var(--muted); font-size: 11px;">Built on live open data from Brisbane City Council and the Queensland Government. No accounts, no tracking — just the map.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-data">
+        <div class="section">
+          <div class="section-title">Data sources</div>
+          <div class="info-card">
+            <strong>Bikeway sections</strong><br />
+            Loaded live from the Brisbane City Council ArcGIS FeatureServer API.
+            <br /><br />
+            <strong>Brisbane boundary</strong><br />
+            Loaded from the Queensland Government ArcGIS REST service for local government boundaries.
+            <br /><br />
+            <strong>Crash data</strong><br />
+            Loaded live from the Queensland Government CKAN DataStore API. The app first filters to Brisbane City records, then keeps records where Count_Unit_Bicycle is at least 1.
+            <br /><br />
+            <strong>Road hierarchy</strong><br />
+            Loaded from the Brisbane City Council Opendatasoft Explore API (City Plan 2014 — Road hierarchy overlay). The dataset contains ~41,750 road segments classified by <code>route_type</code> (Motorway / Arterial / Suburban / District / Neighbourhood / local). Hidden by default; toggle on for road-classification context. Note: City Plan 2014 reflects planned hierarchy and is updated infrequently — it may not match current road conditions.
+            <br /><br />
+            <strong>Bicycle racks</strong><br />
+            Loaded from the BCC Opendatasoft API (Bicycle Rack locations dataset). Covers CBD parking infrastructure only — not a comprehensive Brisbane-wide inventory. Hidden by default.
+            <br /><br />
+            <strong>Parks</strong><br />
+            Loaded from the BCC Opendatasoft API (Park Locations dataset). Polygons for council-managed parks across the LGA. Hidden by default since the layer is dense.
+            <br /><br />
+            <strong>BikeSpot 2023</strong><br />
+            Crowdsourced cyclist survey (CRomero / BikeSpot 2023). Cyclists dropped pins marking locations they perceive as safe or unsafe, with reasons. No public API — bundled as a pre-processed local file filtered to Brisbane (1,337 of 15,080 national points). <em>This is perceived safety, not measured risk:</em> participation was voluntary and self-selected, and unsafe spots vastly outnumber safe ones because people were more motivated to flag problems. Interpret as community sentiment, not a risk model. Hidden by default.
+            <br /><br />
+            <strong>Map tiles</strong><br />
+            CARTO Positron (light) raster tiles through MapLibre GL JS.
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+
+      <div class="map-overlay">
+        <div class="overlay-title">Legend</div>
+
+        <div class="legend-pinned">
+          <div class="legend-item">
+            <div class="symbol-boundary"></div>
+            <span>Brisbane LGA boundary</span>
+          </div>
+        </div>
+
+        <div class="legend-group collapsed" id="legend-group-bikeway">
+          <div class="legend-group-header" data-target="legend-group-bikeway">
+            <span><span class="legend-chevron"></span> Bikeway types</span>
+            <span class="legend-count" id="legend-count-bikeway"></span>
+          </div>
+          <div class="legend-group-body">
+            <div id="bikeway-type-legend">
+              <div class="legend-item">
+                <div class="symbol-line" style="background: var(--bikeway)"></div>
+                <span>Bikeway sections loading</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend-group collapsed" id="legend-group-hierarchy">
+          <div class="legend-group-header" data-target="legend-group-hierarchy">
+            <span><span class="legend-chevron"></span> Road hierarchy</span>
+            <span class="legend-count" id="legend-count-hierarchy"></span>
+          </div>
+          <div class="legend-group-body">
+            <div id="hierarchy-type-legend"></div>
+          </div>
+        </div>
+
+        <div class="legend-group collapsed" id="legend-group-bikespot">
+          <div class="legend-group-header" data-target="legend-group-bikespot">
+            <span><span class="legend-chevron"></span> Safe &amp; unsafe spots</span>
+          </div>
+          <div class="legend-group-body">
+            <div class="legend-item">
+              <div style="width:12px;height:12px;border-radius:50%;background:#3fb950;border:1px solid #fff;flex:0 0 auto;"></div>
+              <span>Safe spot (perceived)</span>
+            </div>
+            <div class="legend-item">
+              <div style="width:12px;height:12px;border-radius:50%;background:#f85149;border:1px solid #fff;flex:0 0 auto;"></div>
+              <span>Unsafe spot (perceived)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend-group collapsed" id="legend-group-ctw">
+          <div class="legend-group-header" data-target="legend-group-ctw">
+            <span><span class="legend-chevron"></span> Cycling to work</span>
+          </div>
+          <div class="legend-group-body">
+            <div class="legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#14532d;flex:0 0 auto;"></div><span>~0% cycle</span></div>
+            <div class="legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#22c55e;flex:0 0 auto;"></div><span>~3% cycle</span></div>
+            <div class="legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#86efac;flex:0 0 auto;"></div><span>6%+ cycle</span></div>
+          </div>
+        </div>
+
+        <div class="legend-group collapsed" id="legend-group-micro">
+          <div class="legend-group-header" data-target="legend-group-micro">
+            <span><span class="legend-chevron"></span> Electric micromobility</span>
+          </div>
+          <div class="legend-group-body">
+            <div class="legend-item"><div style="width:24px;height:4px;background:#f7a737;border-radius:2px;flex:0 0 auto;"></div><span>Low trip count</span></div>
+            <div class="legend-item"><div style="width:24px;height:4px;background:#d44ea0;border-radius:2px;flex:0 0 auto;"></div><span>Medium trip count</span></div>
+            <div class="legend-item"><div style="width:24px;height:4px;background:#5a1a9e;border-radius:2px;flex:0 0 auto;"></div><span>High trip count</span></div>
+            <div class="metric-caption" style="margin-top:6px;">All micromobility trips (e-scooter, e-bike, etc.). Colour and width scale with trip count on a log scale.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <div class="bottom-pill"><strong id="zoom-label">Zoom 11.0</strong></div>
+        <div class="bottom-pill">Click a bikeway section for attributes</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script>
+    // Fail loudly and clearly if MapLibre didn't load (CDN blocked, offline, CSP, etc.)
+    // — gives a useful error instead of the cryptic "maplibregl is not defined".
+    if (typeof maplibregl === "undefined") {
+      const statusEl = document.getElementById("load-status");
+      if (statusEl) statusEl.textContent = "MapLibre failed to load";
+      const mapEl = document.getElementById("map");
+      if (mapEl) {
+        mapEl.style.display = "flex";
+        mapEl.style.alignItems = "center";
+        mapEl.style.justifyContent = "center";
+        mapEl.style.color = "#f85149";
+        mapEl.style.padding = "24px";
+        mapEl.style.textAlign = "center";
+        mapEl.innerHTML = "<div><strong>MapLibre library failed to load.</strong><br><br>" +
+          "The map needs to download a script from <code>cdn.jsdelivr.net</code>. " +
+          "This usually means: (a) you're offline, (b) a firewall or browser extension is blocking the CDN, " +
+          "or (c) you're running the file via <code>file://</code> and the browser is restricting external scripts. " +
+          "Try serving the file from a local web server (e.g. <code>python -m http.server</code>) and reload.</div>";
+      }
+      throw new Error("maplibregl is not defined — CDN load failed");
+    }
+  </script>
+  <script>
+    // -------------------- CONFIG --------------------
+    const BIKEWAY_API_LAYER_URL = "https://services2.arcgis.com/dEKgZETqwmDAh1rP/arcgis/rest/services/Bikeway_sections/FeatureServer/36/query";
+    const BIKEWAY_BATCH_SIZE = 2000;
+
+    const CRASH_RESOURCE_ID = "e88943c0-5968-4972-a15f-38e120d72ec0";
+    const CKAN_DATASTORE_URL = "https://www.data.qld.gov.au/api/action/datastore_search";
+    const CRASH_BATCH_SIZE = 1000;
+
+    // BCC Road Hierarchy Overlay (City Plan 2014) — Opendatasoft v2.1 GeoJSON export.
+    // Dataset has 41,753 line segments (~15-40 MB raw). We use `select=` to drop unused
+    // fields (shape_length, cat_desc, ovl_cat, ovl2_cat, lga_code, geo_point_2d, objectid),
+    // keeping only route_type, ovl2_desc, description, and geometry. Cuts payload ~30-40%.
+    // Limitation: City Plan 2014 reflects planned hierarchy; updates are infrequent.
+    const ROAD_HIERARCHY_URL =
+      "https://data.brisbane.qld.gov.au/api/explore/v2.1/catalog/datasets/" +
+      "cp14-road-hierarchy-overlay-road-hierarchy/exports/geojson" +
+      "?select=" + encodeURIComponent("route_type,ovl2_desc,description");
+
+    // BCC Bicycle Racks — Opendatasoft v2.1. CBD coverage only.
+    // Trim fields: keep address, location, capacity, rack_type, suburb.
+    const BICYCLE_RACKS_URL =
+      "https://data.brisbane.qld.gov.au/api/explore/v2.1/catalog/datasets/" +
+      "bicycle-racks/exports/geojson" +
+      "?select=" + encodeURIComponent("address,location,capacity,rack_type,suburb");
+
+    // BCC Park Locations — Opendatasoft v2.1.
+    // Trim: keep park_name, suburb, post_code, street_address, shape_area for popup;
+    // drop SAP IDs and centroid lon/lat (geometry contains the polygon).
+    const PARKS_URL =
+      "https://data.brisbane.qld.gov.au/api/explore/v2.1/catalog/datasets/" +
+      "park-locations/exports/geojson" +
+      "?select=" + encodeURIComponent("park_name,suburb,post_code,street_address,shape_area");
+
+    // BikeSpot 2023 — crowdsourced cyclist safe/unsafe spot survey.
+    // No public API exists; data is a pre-processed local file (filtered to Brisbane,
+    // fields trimmed, coordinates rounded to 5dp, minified — 23 MB national file → ~692 KB).
+    // Served same-origin alongside index.html. Regenerate by re-running the trim script
+    // if the source dataset is updated.
+    const BIKESPOT_URL = "bikespot_brisbane.geojson";
+
+    // Census 2021 cycling-to-work mode share, pre-joined to Greater Brisbane SA2 polygons.
+    // Computed offline as bicycle (MTWP code 10) / travelled-to-work total
+    // (excludes worked-at-home, did-not-go-to-work, and not-stated). Bundled local file.
+    const CYCLING_TO_WORK_URL = "cycling_to_work_brisbane.geojson";
+    const MICROMOBILITY_URL = "micromobility_brisbane.geojson";
+
+    // BCC Suburb Boundaries — used to strictly filter BikeSpot points to Brisbane LGA suburbs.
+    // The dataset's localities union = Brisbane City LGA. We exclude five Moreton Bay island
+    // localities (no road network relevant to a cycling app): Bulwer, Cowan Cowan, Kooringal,
+    // Moreton Bay, Moreton Island. Fetched in-browser (CORS-enabled Opendatasoft endpoint).
+    const SUBURB_BOUNDARIES_URL =
+      "https://data.brisbane.qld.gov.au/api/explore/v2.1/catalog/datasets/" +
+      "suburb-boundaries/exports/geojson";
+    const EXCLUDED_ISLAND_LOCALITIES = new Set([
+      "BULWER", "COWAN COWAN", "KOORINGAL", "MORETON BAY", "MORETON ISLAND"
+    ]);
+
+    const BRISBANE_BOUNDARY_URL =
+      "https://spatial-gis.information.qld.gov.au/arcgis/rest/services/Boundaries/AdminBoundariesFramework/MapServer/11/query" +
+      "?where=" + encodeURIComponent("adminareaname = 'BRISBANE CITY'") +
+      "&outFields=" + encodeURIComponent("adminareaname,lga_code,abbrev_name,ca_area_sqkm") +
+      "&returnGeometry=true&outSR=4326&f=geojson";
+
+    // QLDTraffic real-time events feed (Transport and Main Roads).
+    // PUBLIC API KEY: The QLDTraffic API spec (v1.10, section 2.1.1.1) publishes a public
+    // key for unregistered developers. The key value is in the spec PDF only and isn't
+    // copied here — paste it below before deploying. Rate limit: 100 requests/min globally.
+    //   https://qldtraffic.qld.gov.au/media/moreDevelopers-and-Data/qldtraffic-website-api-specification-v1-10.pdf
+    const QLDTRAFFIC_API_KEY = "3e83add325cbb69ac4d8e5bf433d770b";
+    // QLDTraffic API does NOT send CORS headers, so browser-side fetches fail with
+    // "Failed to fetch". We route through corsproxy.io, a free public CORS proxy.
+    // Tradeoffs accepted:
+    //  - Third-party dependency: if corsproxy.io is down or rate-limits, this feature breaks.
+    //    The rest of the app is unaffected — loadTrafficEvents already fails gracefully.
+    //  - The proxy sees our requests, including the QLDTraffic public API key.
+    //    That key is already shared publicly, so leakage is not a concern.
+    //  - Free-tier rate limit (~60/min per IP); our 12/hour polling is far below.
+    // For production, replace this with a Cloudflare Worker or similar self-hosted proxy.
+    const QLDTRAFFIC_CORS_PROXY = "https://corsproxy.io/?url=";
+    const QLDTRAFFIC_EVENTS_URL = "https://api.qldtraffic.qld.gov.au/v2/events";
+    const QLDTRAFFIC_POLL_INTERVAL_MS = 5 * 60 * 1000;  // 5 minutes
+
+    // Brisbane LGA bounding box (rough — not the official polygon) for fast client-side
+    // filtering of the statewide events feed. Anything outside this box is discarded.
+    const BRISBANE_BBOX = { minLon: 152.67, maxLon: 153.31, minLat: -27.77, maxLat: -27.10 };
+
+    // OpenRouteService — cycling directions.
+    // You can generate a free API key at https://openrouteservice.org/dev/#/signup
+    // Free tier: 2,000 requests/day, 40/min. Key is sent as Authorization header.
+    // PASTE YOUR KEY HERE — the placeholder will refuse to fire requests and show a clear error.
+    const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNjMGEzZjE3ZGQ1ZTQ1ZmNhNThlNjE0MWJiMmNjMmM4IiwiaCI6Im11cm11cjY0In0=";
+    const ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/cycling-regular/geojson";
+
+    // Cache version — bump to invalidate stored data after schema or filter changes
+    const CACHE_VERSION = "v8";
+    const CACHE_KEYS = {
+      boundary:  `vg:${CACHE_VERSION}:boundary`,
+      bikeways:  `vg:${CACHE_VERSION}:bikeways`,
+      crashes:   `vg:${CACHE_VERSION}:crashes`,
+      hierarchy: `vg:${CACHE_VERSION}:hierarchy`,
+      racks:     `vg:${CACHE_VERSION}:racks`,
+      parks:     `vg:${CACHE_VERSION}:parks`,
+      bikespot:  `vg:${CACHE_VERSION}:bikespot`,
+      suburbpoly:`vg:${CACHE_VERSION}:suburbpoly`,
+      ctw:       `vg:${CACHE_VERSION}:ctw`,
+      micro:     `vg:${CACHE_VERSION}:micro`
+    };
+
+    // Bikeway traffic-type colour palette — used by both legend and MapLibre `match` expression
+    const TRAFFIC_COLOURS = {
+      "BICYCLE CROSSING":     "#f85149",
+      "BICYCLE LANE":         "#58a6ff",
+      "BICYCLE PATH":         "#00d4aa",
+      "BICYCLE ROUTE":        "#d29922",
+      "BICYCLE STORAGE AREA": "#a371f7",
+      "CYCLE TRACK":          "#3fb950",
+      "INFORMAL OFF ROAD":    "#79c0ff",
+      "INFORMAL ON ROAD":     "#ff7b72",
+      "PRIORITY CROSSING":    "#f0c674",
+      "SEPARATED PATHWAY":    "#2dd4bf",
+      "SHARED PATHWAY":       "#c084fc",
+      "SHARED ZONE":          "#fb923c",
+      "UNCLASSIFIED":         "#c9d1d9"
+    };
+    const TRAFFIC_DEFAULT_COLOUR = "#c9d1d9";
+
+    // Road hierarchy palette — keyed on actual `route_type` values from the BCC API
+    // (verified from a sample query). Ordering reflects traffic volume/speed: motorway
+    // and arterial at the heavy end, neighbourhood/local at the light end.
+    // The palette is a visual proxy, not a safety rating — separated infrastructure
+    // on an arterial can be safer than a neighbourhood road without it.
+    const HIERARCHY_COLOURS = {
+      "MOTORWAY":              "#d7191c",
+      "ARTERIAL":              "#f46d43",
+      "SUBURBAN":              "#fdae61",
+      "DISTRICT":              "#fee08b",
+      "NEIGHBOURHOOD / LOCAL": "#1a9850",
+      // 'Future' values (if present) share built-equivalent colours
+      "FUTURE MOTORWAY":       "#d7191c",
+      "FUTURE ARTERIAL":       "#f46d43",
+      "FUTURE SUBURBAN":       "#fdae61",
+      "FUTURE DISTRICT":       "#fee08b"
+    };
+    const HIERARCHY_DEFAULT_COLOUR = "#8b949e";
+
+    // Field name in BCC dataset is `route_type` — verified via API sample.
+    const HIERARCHY_FIELD = "route_type";
+
+    // -------------------- STATE --------------------
+    const layerState = {
+      "bikeway-sections": true,
+      "cyclist-crashes": false,
+      "road-hierarchy": false,
+      "bicycle-racks": false,
+      "parks": false,
+      "bikespot": false,
+      "cycling-to-work": false,
+      "micromobility": false
+    };
+
+    // -------------------- MAP INIT --------------------
+    const map = new maplibregl.Map({
+      container: "map",
+      center: [153.0251, -27.4705],
+      zoom: 11,
+      pitch: 0,
+      bearing: 0,
+      attributionControl: true,
+      style: {
+        version: 8,
+        sources: {
+          "carto-dark": {
+            type: "raster",
+            tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors © CARTO"
+          }
+        },
+        layers: [
+          { id: "carto-dark", type: "raster", source: "carto-dark", paint: { "raster-opacity": 0.92 } }
+        ]
+      }
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 160, unit: "metric" }), "bottom-right");
+
+    map.on("load", async () => {
+      setStatus("Loading data");
+      await Promise.allSettled([
+        loadBoundary(),
+        loadBikeways(),
+        loadCyclistCrashes(),
+        loadRoadHierarchy(),
+        loadBicycleRacks(),
+        loadParks(),
+        loadBikeSpot(),
+        loadCyclingToWork(),
+        loadMicromobility()
+      ]);
+      setStatus("Ready");
+      updateVisibleCount();
+      // Kick off traffic polling — independent of dataset loaders, runs every 5 min
+      startTrafficPolling();
+      // Wire up routing UI — map click handler depends on map being initialised
+      initRouting();
+    });
+
+    // Debounced zoom label — coalesce many zoom events into one rAF per frame
+    const zoomLabel = document.getElementById("zoom-label");
+    let zoomRafId = null;
+    map.on("zoom", () => {
+      if (zoomRafId !== null) return;
+      zoomRafId = requestAnimationFrame(() => {
+        zoomLabel.textContent = `Zoom ${map.getZoom().toFixed(1)}`;
+        zoomRafId = null;
+      });
+    });
+
+    // -------------------- CACHE HELPERS --------------------
+    function readCache(key) {
+      try {
+        const raw = sessionStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Purge any cache entries from older versions (vg:v1:*, vg:v2:* etc).
+    // Defensive — prevents accumulated session storage from earlier versions of the app
+    // from interfering with current keys, and frees up sessionStorage quota.
+    (function purgeStaleCacheVersions() {
+      try {
+        const currentPrefix = `vg:${CACHE_VERSION}:`;
+        const keysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith("vg:") && !k.startsWith(currentPrefix)) keysToRemove.push(k);
+        }
+        keysToRemove.forEach(k => sessionStorage.removeItem(k));
+        if (keysToRemove.length) console.log(`Purged ${keysToRemove.length} stale cache entries`);
+      } catch (e) {
+        // sessionStorage unavailable (private browsing, quota issues) — ignore
+      }
+    })();
+
+    function writeCache(key, value) {
+      try {
+        sessionStorage.setItem(key, JSON.stringify(value));
+      } catch (e) {
+        // Quota exceeded or storage unavailable — silently fail; data is still in memory
+        console.warn(`Cache write failed for ${key}:`, e.message);
+      }
+    }
+
+    // -------------------- BOUNDARY --------------------
+    async function loadBoundary() {
+      try {
+        let geojson = readCache(CACHE_KEYS.boundary);
+
+        if (!geojson) {
+          const response = await fetchWithTimeout(BRISBANE_BOUNDARY_URL, 12000);
+          if (!response.ok) throw new Error(`Boundary request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features || geojson.features.length === 0) throw new Error("No Brisbane boundary returned");
+          writeCache(CACHE_KEYS.boundary, geojson);
+        }
+
+        map.addSource("brisbane-boundary", { type: "geojson", data: geojson });
+
+        map.addLayer({
+          id: "brisbane-boundary-fill",
+          type: "fill",
+          source: "brisbane-boundary",
+          paint: { "fill-color": "#f0c674", "fill-opacity": 0.035 }
+        });
+
+        map.addLayer({
+          id: "brisbane-boundary-line",
+          type: "line",
+          source: "brisbane-boundary",
+          paint: { "line-color": "#f0c674", "line-width": 2.4, "line-opacity": 0.92 }
+        });
+
+        const bounds = getGeoJsonBounds(geojson);
+        if (bounds) map.fitBounds(bounds, { padding: 54, duration: 900 });
+
+        document.getElementById("boundary-note").textContent = "Official LGA boundary loaded";
+      } catch (error) {
+        console.error(error);
+        document.getElementById("boundary-note").textContent = "Boundary failed to load";
+      }
+    }
+
+    // -------------------- BIKEWAYS --------------------
+    async function loadBikeways() {
+      try {
+        let geojson = readCache(CACHE_KEYS.bikeways);
+
+        if (!geojson) {
+          geojson = await fetchAllBikewaySections();
+          writeCache(CACHE_KEYS.bikeways, geojson);
+        }
+
+        // Build legend counts in one pass — no feature mutation
+        const trafficCounts = countTrafficTypes(geojson);
+
+        map.addSource("bikeway-sections", { type: "geojson", data: geojson });
+
+        // Style-expression colour: evaluates lazily, no per-feature property writes
+        const colourExpression = buildTrafficColourExpression();
+
+        // Glow layer only renders when zoomed in — saves draw calls at city-wide view
+        map.addLayer({
+          id: "bikeway-sections-line-glow",
+          type: "line",
+          source: "bikeway-sections",
+          minzoom: 11,
+          paint: {
+            "line-color": colourExpression,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.4, 13, 4.4, 16, 8],
+            "line-opacity": 0.18
+          }
+        });
+
+        map.addLayer({
+          id: "bikeway-sections-line",
+          type: "line",
+          source: "bikeway-sections",
+          paint: {
+            "line-color": colourExpression,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 9, 0.7, 13, 2.2, 16, 5],
+            "line-opacity": 0.88
+          }
+        });
+
+        map.on("click", "bikeway-sections-line", event => {
+          const feature = event.features && event.features[0];
+          if (!feature) return;
+          const p = feature.properties || {};
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">Bikeway section</div>
+              ${popupRow("Street", p.STREET_NAME)}
+              ${popupRow("Suburb", p.SUBURB)}
+              ${popupRow("Traffic type", p.TRAFFIC_TYPES_DESCRIPTION)}
+              ${popupRow("Section type", p.SECTION_TYPES_DESCRIPTION)}
+              ${popupRow("Location", p.LOCATIONS_DESCRIPTION)}
+              ${popupRow("On or off road", p.BIKEWAY_ON_OFF_ROAD_DESC)}
+              ${popupRow("Width", formatWidth(p.BIKEWAY_WIDTH))}
+              ${popupRow("Hierarchy", p.HIERARCHY)}
+              ${popupRow("Owner", p.OWNER)}
+            `)
+            .addTo(map);
+        });
+
+        map.on("mouseenter", "bikeway-sections-line", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "bikeway-sections-line", () => { map.getCanvas().style.cursor = ""; });
+
+        renderBikewayLegend(trafficCounts);
+
+        const featureCount = geojson.features.length;
+        const totalKm = computeGeoJsonLineKm(geojson);
+        const kmEl = document.getElementById("bikeway-km");
+        if (kmEl) kmEl.textContent = totalKm.toLocaleString("en-AU", { maximumFractionDigits: 0 });
+        document.getElementById("bikeway-note").textContent =
+          `${featureCount.toLocaleString("en-AU")} sections · ${totalKm.toLocaleString("en-AU", { maximumFractionDigits: 1 })} km`;
+      } catch (error) {
+        console.error("loadBikeways failed:", error);
+        const note = document.getElementById("bikeway-note");
+        // Show the actual error in the sidebar so we can diagnose without DevTools
+        note.textContent = `Bikeway load failed: ${String(error.message || error).slice(0, 80)}`;
+        note.style.color = "#f85149";
+      }
+    }
+
+    async function fetchAllBikewaySections() {
+      const allFeatures = [];
+      let offset = 0;
+      let geometryType = null;
+
+      while (true) {
+        document.getElementById("bikeway-note").textContent = `Loading bikeways ${offset.toLocaleString("en-AU")}+`;
+
+        const params = new URLSearchParams({
+          where: "1=1",
+          outFields: "*",
+          returnGeometry: "true",
+          outSR: "4326",
+          f: "geojson",
+          resultOffset: String(offset),
+          resultRecordCount: String(BIKEWAY_BATCH_SIZE)
+        });
+
+        const response = await fetchWithTimeout(`${BIKEWAY_API_LAYER_URL}?${params.toString()}`, 12000);
+        if (!response.ok) throw new Error(`Bikeway API request failed: ${response.status}`);
+
+        const batch = await response.json();
+        if (batch.error) throw new Error(batch.error.message || "Bikeway API returned an error");
+        if (!geometryType && batch.geometryType) geometryType = batch.geometryType;
+
+        const batchFeatures = Array.isArray(batch.features) ? batch.features : [];
+        allFeatures.push(...batchFeatures);
+
+        if (batchFeatures.length < BIKEWAY_BATCH_SIZE) break;
+        offset += BIKEWAY_BATCH_SIZE;
+      }
+
+      return { type: "FeatureCollection", name: "Bikeway sections", geometryType, features: allFeatures };
+    }
+
+    // Normalise the traffic-type string for use as a lookup key
+    function normaliseTrafficKey(value) {
+      if (value === null || value === undefined || String(value).trim() === "") return "UNCLASSIFIED";
+      return String(value).trim().toUpperCase().replaceAll("-", " ").replaceAll("_", " ").split(" ").filter(Boolean).join(" ");
+    }
+
+    function toTitleCase(value) {
+      return String(value).toLowerCase().split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    }
+
+    // Build the MapLibre `match` expression for line colour.
+    // NOTE: this matches against the upcased TRAFFIC_TYPES_DESCRIPTION property.
+    // Hyphens/underscores in the source data won't be normalised by the style engine;
+    // those fall through to the default colour. If field values are inconsistent, this
+    // is a known limitation — fix upstream or pre-process during fetch.
+    function buildTrafficColourExpression() {
+      const matchExpr = [
+        "match",
+        ["upcase", ["coalesce", ["get", "TRAFFIC_TYPES_DESCRIPTION"], "UNCLASSIFIED"]]
+      ];
+      for (const [key, colour] of Object.entries(TRAFFIC_COLOURS)) {
+        matchExpr.push(key, colour);
+      }
+      matchExpr.push(TRAFFIC_DEFAULT_COLOUR);
+      return matchExpr;
+    }
+
+    // Single-pass count of traffic types — no property mutation on features
+    function countTrafficTypes(geojson) {
+      const counts = new Map();
+      for (const feature of geojson.features) {
+        const key = normaliseTrafficKey(feature.properties && feature.properties.TRAFFIC_TYPES_DESCRIPTION);
+        const colour = TRAFFIC_COLOURS[key] || TRAFFIC_DEFAULT_COLOUR;
+        const existing = counts.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          counts.set(key, { label: toTitleCase(key), colour, count: 1 });
+        }
+      }
+      return counts;
+    }
+
+    function renderBikewayLegend(trafficCounts) {
+      const legend = document.getElementById("bikeway-type-legend");
+      const items = Array.from(trafficCounts.values()).sort((a, b) => a.label.localeCompare(b.label));
+      legend.innerHTML = items.map(item => `
+        <div class="legend-item">
+          <div class="symbol-line" style="background: ${item.colour}"></div>
+          <span>${escapeHtml(item.label)} (${item.count.toLocaleString("en-AU")})</span>
+        </div>
+      `).join("");
+      // Count of distinct types, shown in the group header
+      const countEl = document.getElementById("legend-count-bikeway");
+      if (countEl) countEl.textContent = `${items.length} types`;
+    }
+
+    // -------------------- CRASHES --------------------
+    async function loadCyclistCrashes() {
+      try {
+        document.getElementById("crash-note").textContent = "Querying filtered crash records";
+
+        let geojson = readCache(CACHE_KEYS.crashes);
+
+        if (!geojson) {
+          const records = await fetchCyclistCrashRecords();
+          const features = [];
+          for (const row of records) {
+            const lat = toNumber(row.Crash_Latitude);
+            const lon = toNumber(row.Crash_Longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat === 0 || lon === 0) continue;
+            features.push({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [lon, lat] },
+              properties: {
+                crash_ref: row.Crash_Ref_Number || "Unknown",
+                crash_year: row.Crash_Year || "Unknown",
+                severity: row.Crash_Severity || "Unknown",
+                nature: row.Crash_Nature || "Unknown",
+                type: row.Crash_Type || "Unknown",
+                street: row.Crash_Street || "Unknown",
+                intersecting_street: row.Crash_Street_Intersecting || "Unknown",
+                suburb: row.Loc_Suburb || "Unknown",
+                lga: row.Loc_Local_Government_Area || "Unknown",
+                speed_limit: row.Crash_Speed_Limit || "Unknown",
+                bicycle_count: row.Count_Unit_Bicycle || "Unknown"
+              }
+            });
+          }
+          geojson = { type: "FeatureCollection", features };
+          writeCache(CACHE_KEYS.crashes, geojson);
+        }
+
+        map.addSource("cyclist-crashes", { type: "geojson", data: geojson });
+
+        map.addLayer({
+          id: "cyclist-crash-heat",
+          type: "heatmap",
+          source: "cyclist-crashes",
+          maxzoom: 14,
+          layout: { visibility: "none" },
+          paint: {
+            "heatmap-weight": 1,
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 14, 2],
+            "heatmap-radius":    ["interpolate", ["linear"], ["zoom"], 8, 10, 14, 28],
+            "heatmap-opacity": 0.72,
+            "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"],
+              0, "rgba(0,0,0,0)", 0.2, "#2b83ba", 0.4, "#abdda4", 0.6, "#ffffbf", 0.8, "#fdae61", 1, "#d7191c"]
+          }
+        });
+
+        map.addLayer({
+          id: "cyclist-crash-points",
+          type: "circle",
+          source: "cyclist-crashes",
+          minzoom: 13,
+          layout: { visibility: "none" },
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2.4, 18, 7],
+            "circle-color": ["match", ["get", "severity"],
+              "Fatal", "#d7191c",
+              "Hospitalisation", "#fdae61",
+              "Medical treatment", "#ffffbf",
+              "Minor injury", "#abdda4",
+              "Property damage only", "#2b83ba",
+              "#ff4d6d"],
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#ffffff",
+            "circle-opacity": 0.88
+          }
+        });
+
+        map.on("click", "cyclist-crash-points", event => {
+          const feature = event.features && event.features[0];
+          if (!feature) return;
+          const p = feature.properties || {};
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">Cyclist crash</div>
+              ${popupRow("Year", p.crash_year)}
+              ${popupRow("Severity", p.severity)}
+              ${popupRow("Nature", p.nature)}
+              ${popupRow("Street", p.street)}
+              ${popupRow("Intersecting", p.intersecting_street)}
+              ${popupRow("Suburb", p.suburb)}
+              ${popupRow("Speed limit", p.speed_limit)}
+              ${popupRow("Bicycles", p.bicycle_count)}
+            `)
+            .addTo(map);
+        });
+
+        map.on("mouseenter", "cyclist-crash-points", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "cyclist-crash-points", () => { map.getCanvas().style.cursor = ""; });
+
+        // Severity tally — single pass over the features we already built
+        const tally = tallyCrashSeverity(geojson);
+        const writeMetric = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value.toLocaleString("en-AU");
+        };
+        writeMetric("crash-total", tally.total);
+        writeMetric("crash-fatal", tally.fatal);
+        writeMetric("crash-hosp",  tally.hospitalisation);
+        writeMetric("crash-other", tally.other);
+
+        document.getElementById("crash-note").textContent = `${geojson.features.length.toLocaleString("en-AU")} Brisbane cyclist crashes loaded`;
+      } catch (error) {
+        console.error(error);
+        document.getElementById("crash-note").textContent = "Cyclist crash API failed to load";
+      }
+    }
+
+    // Severity tally — case-insensitive match against the five known values.
+    // Anything unrecognised falls into "other" so totals always reconcile.
+    function tallyCrashSeverity(geojson) {
+      const t = { total: 0, fatal: 0, hospitalisation: 0, other: 0 };
+      for (const feature of geojson.features) {
+        t.total += 1;
+        const sev = String((feature.properties && feature.properties.severity) || "").trim().toLowerCase();
+        if (sev === "fatal") t.fatal += 1;
+        else if (sev === "hospitalisation") t.hospitalisation += 1;
+        else t.other += 1;  // Medical treatment, Minor injury, Property damage only, Unknown
+      }
+      return t;
+    }
+
+    async function fetchCyclistCrashRecords() {
+      const candidateLgaValues = ["Brisbane City", "BRISBANE CITY"];
+      for (const lgaValue of candidateLgaValues) {
+        const records = await fetchCrashRecordsForLga(lgaValue);
+        const cyclistRecords = records.filter(row => toNumber(row.Count_Unit_Bicycle) >= 1);
+        if (cyclistRecords.length > 0) return cyclistRecords;
+      }
+      return [];
+    }
+
+    async function fetchCrashRecordsForLga(lgaValue) {
+      const allRecords = [];
+      let offset = 0;
+      while (true) {
+        document.getElementById("crash-note").textContent = `Loading Brisbane crash records ${offset.toLocaleString("en-AU")}+`;
+
+        const params = new URLSearchParams({
+          resource_id: CRASH_RESOURCE_ID,
+          limit: String(CRASH_BATCH_SIZE),
+          offset: String(offset),
+          filters: JSON.stringify({ Loc_Local_Government_Area: lgaValue })
+        });
+
+        const response = await fetchWithTimeout(`${CKAN_DATASTORE_URL}?${params.toString()}`, 12000);
+        if (!response.ok) throw new Error(`CKAN datastore request failed: ${response.status}`);
+
+        const json = await response.json();
+        if (!json.success) throw new Error((json.error && json.error.message) || "CKAN datastore returned an error");
+
+        const records = (json.result && Array.isArray(json.result.records)) ? json.result.records : [];
+        allRecords.push(...records);
+
+        if (records.length < CRASH_BATCH_SIZE) break;
+        offset += CRASH_BATCH_SIZE;
+      }
+      return allRecords;
+    }
+
+    // -------------------- ROAD HIERARCHY --------------------
+    async function loadRoadHierarchy() {
+      try {
+        document.getElementById("hierarchy-note").textContent = "Loading City Plan 2014 road hierarchy";
+
+        let geojson = readCache(CACHE_KEYS.hierarchy);
+
+        if (!geojson) {
+          const response = await fetchWithTimeout(ROAD_HIERARCHY_URL, 30000);
+          if (!response.ok) throw new Error(`Road hierarchy request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features || geojson.features.length === 0) {
+            throw new Error("Road hierarchy returned no features");
+          }
+          writeCache(CACHE_KEYS.hierarchy, geojson);
+        }
+
+        // Field name is hardcoded (verified from BCC API sample). If BCC changes the
+        // schema, this is the only place to update.
+        const hierarchyCounts = countHierarchyCategories(geojson, HIERARCHY_FIELD);
+
+        map.addSource("road-hierarchy", { type: "geojson", data: geojson });
+
+        const hierarchyColourExpression = buildHierarchyColourExpression(HIERARCHY_FIELD);
+
+        // Render BELOW bikeways and crashes — hierarchy is context, not the focus.
+        // 'beforeId' places this layer underneath bikeway-sections-line-glow so cycling
+        // infrastructure stays visually dominant.
+        const beforeId = map.getLayer("bikeway-sections-line-glow") ? "bikeway-sections-line-glow" : undefined;
+
+        map.addLayer({
+          id: "road-hierarchy-line",
+          type: "line",
+          source: "road-hierarchy",
+          layout: { visibility: "none" },  // off by default — toggled by user
+          paint: {
+            "line-color": hierarchyColourExpression,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 14, 1.8, 17, 3.5],
+            "line-opacity": 0.7
+          }
+        }, beforeId);
+
+        map.on("click", "road-hierarchy-line", event => {
+          const feature = event.features && event.features[0];
+          if (!feature) return;
+          const p = feature.properties || {};
+          const category = p[HIERARCHY_FIELD] || "Unknown";
+          const subcategory = p.ovl2_desc || "";
+          const description = p.description || "";
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">Road hierarchy (City Plan 2014)</div>
+              ${popupRow("Category", category)}
+              ${popupRow("Sub-category", subcategory)}
+              ${popupRow("Location", description)}
+              ${popupRow("Source", "BCC Open Data / City Plan 2014")}
+            `)
+            .addTo(map);
+        });
+
+        renderHierarchyLegend(hierarchyCounts);
+
+        const featureCount = geojson.features.length;
+        document.getElementById("hierarchy-note").textContent = `${featureCount.toLocaleString("en-AU")} road segments loaded`;
+      } catch (error) {
+        console.error(error);
+        document.getElementById("hierarchy-note").textContent = "Road hierarchy failed to load";
+      }
+    }
+
+    function normaliseHierarchyKey(value) {
+      if (value === null || value === undefined || String(value).trim() === "") return "UNKNOWN";
+      return String(value).trim().toUpperCase().replaceAll("-", " ").replaceAll("_", " ").split(" ").filter(Boolean).join(" ");
+    }
+
+    function countHierarchyCategories(geojson, hierarchyField) {
+      const counts = new Map();
+      for (const feature of geojson.features) {
+        const raw = hierarchyField && feature.properties ? feature.properties[hierarchyField] : null;
+        const key = normaliseHierarchyKey(raw);
+        const colour = HIERARCHY_COLOURS[key] || HIERARCHY_DEFAULT_COLOUR;
+        const existing = counts.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          counts.set(key, { label: toTitleCase(key), colour, count: 1 });
+        }
+      }
+      return counts;
+    }
+
+    function buildHierarchyColourExpression(hierarchyField) {
+      if (!hierarchyField) return HIERARCHY_DEFAULT_COLOUR;
+      const matchExpr = [
+        "match",
+        ["upcase", ["coalesce", ["get", hierarchyField], "UNKNOWN"]]
+      ];
+      for (const [key, colour] of Object.entries(HIERARCHY_COLOURS)) {
+        matchExpr.push(key, colour);
+      }
+      matchExpr.push(HIERARCHY_DEFAULT_COLOUR);
+      return matchExpr;
+    }
+
+    function renderHierarchyLegend(counts) {
+      const legend = document.getElementById("hierarchy-type-legend");
+      if (!legend) return;
+      // Order: heaviest hierarchy first, then future variants at the end
+      const orderedKeys = [
+        "MOTORWAY", "ARTERIAL", "SUBURBAN", "DISTRICT", "NEIGHBOURHOOD / LOCAL",
+        "FUTURE MOTORWAY", "FUTURE ARTERIAL", "FUTURE SUBURBAN", "FUTURE DISTRICT"
+      ];
+      const items = Array.from(counts.entries()).sort((a, b) => {
+        const aIdx = orderedKeys.indexOf(a[0]);
+        const bIdx = orderedKeys.indexOf(b[0]);
+        return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+      }).map(([, v]) => v);
+      legend.innerHTML = items.map(item => `
+        <div class="legend-item">
+          <div class="symbol-line" style="background: ${item.colour}"></div>
+          <span>${escapeHtml(item.label)} (${item.count.toLocaleString("en-AU")})</span>
+        </div>
+      `).join("");
+      const countEl = document.getElementById("legend-count-hierarchy");
+      if (countEl) countEl.textContent = `${items.length} types`;
+    }
+
+    // -------------------- BICYCLE RACKS --------------------
+
+    async function loadBicycleRacks() {
+      try {
+        document.getElementById("racks-note").textContent = "Loading bicycle rack locations";
+
+        let geojson = readCache(CACHE_KEYS.racks);
+
+        if (!geojson) {
+          const response = await fetchWithTimeout(BICYCLE_RACKS_URL, 15000);
+          if (!response.ok) throw new Error(`Bicycle racks request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("Bicycle racks: unexpected response shape");
+          writeCache(CACHE_KEYS.racks, geojson);
+        }
+
+        // Sum capacity for the layer note
+        let totalCapacity = 0;
+        for (const f of geojson.features) {
+          const cap = Number((f.properties && f.properties.capacity) || 0);
+          if (Number.isFinite(cap)) totalCapacity += cap;
+        }
+
+        map.addSource("bicycle-racks", { type: "geojson", data: geojson });
+
+        const RACK_COLOUR = "#a371f7";
+
+        // Register a triangle ("pyramid") icon so racks are visually distinct from the many
+        // circular markers (crashes, BikeSpot). Drawn once to a canvas and added as a map image.
+        if (!map.hasImage("rack-triangle")) {
+          const size = 24;
+          const canvas = document.createElement("canvas");
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          ctx.beginPath();
+          ctx.moveTo(size / 2, 2);            // apex
+          ctx.lineTo(size - 2, size - 3);     // bottom-right
+          ctx.lineTo(2, size - 3);            // bottom-left
+          ctx.closePath();
+          ctx.fillStyle = RACK_COLOUR;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+          const img = ctx.getImageData(0, 0, size, size);
+          map.addImage("rack-triangle", { width: size, height: size, data: img.data }, { pixelRatio: 2 });
+        }
+
+        map.addLayer({
+          id: "bicycle-racks-symbol",
+          type: "symbol",
+          source: "bicycle-racks",
+          layout: {
+            visibility: "none",
+            "icon-image": "rack-triangle",
+            "icon-allow-overlap": true,
+            "icon-size": ["interpolate", ["linear"], ["zoom"], 11, 0.4, 16, 0.85],
+            "icon-anchor": "center"
+          }
+        });
+
+        map.on("click", "bicycle-racks-symbol", event => {
+          const f = event.features && event.features[0];
+          if (!f) return;
+          const p = f.properties || {};
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">Bicycle rack</div>
+              ${popupRow("Address", p.address)}
+              ${popupRow("Location", p.location)}
+              ${popupRow("Suburb", p.suburb)}
+              ${popupRow("Capacity", p.capacity)}
+              ${popupRow("Type", p.rack_type)}
+            `)
+            .addTo(map);
+        });
+        map.on("mouseenter", "bicycle-racks-symbol", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "bicycle-racks-symbol", () => { map.getCanvas().style.cursor = ""; });
+
+        const featureCount = geojson.features.length;
+        document.getElementById("racks-note").textContent =
+          `${featureCount.toLocaleString("en-AU")} racks · capacity ${totalCapacity.toLocaleString("en-AU")}`;
+      } catch (error) {
+        console.error("loadBicycleRacks failed:", error);
+        const note = document.getElementById("racks-note");
+        note.textContent = `Racks load failed: ${String(error.message || error).slice(0, 80)}`;
+        note.style.color = "#f85149";
+      }
+    }
+
+    // -------------------- PARKS --------------------
+
+    async function loadParks() {
+      try {
+        document.getElementById("parks-note").textContent = "Loading park polygons";
+
+        let geojson = readCache(CACHE_KEYS.parks);
+
+        if (!geojson) {
+          // Parks have polygon geometry — heavier than racks. Longer timeout.
+          const response = await fetchWithTimeout(PARKS_URL, 30000);
+          if (!response.ok) throw new Error(`Parks request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("Parks: unexpected response shape");
+          writeCache(CACHE_KEYS.parks, geojson);
+        }
+
+        // Sum area in km² for the layer note
+        // Limitation: shape_area is in projection-dependent units (likely m² Web Mercator
+        // distorted at this latitude). Treating it as m² gives an approximate figure.
+        let totalAreaM2 = 0;
+        for (const f of geojson.features) {
+          const a = Number((f.properties && f.properties.shape_area) || 0);
+          if (Number.isFinite(a)) totalAreaM2 += a;
+        }
+        const totalKm2 = (totalAreaM2 / 1e6).toFixed(1);
+
+        map.addSource("parks", { type: "geojson", data: geojson });
+
+        // Place parks BELOW bikeways/crashes so they don't visually compete
+        const beforeId = map.getLayer("bikeway-sections-line-glow") ? "bikeway-sections-line-glow" : undefined;
+
+        map.addLayer({
+          id: "parks-fill",
+          type: "fill",
+          source: "parks",
+          layout: { visibility: "none" },
+          paint: {
+            "fill-color": "#3fb950",
+            "fill-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.12, 14, 0.22, 18, 0.32]
+          }
+        }, beforeId);
+
+        map.addLayer({
+          id: "parks-outline",
+          type: "line",
+          source: "parks",
+          layout: { visibility: "none" },
+          paint: {
+            "line-color": "#3fb950",
+            "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.4, 14, 0.9, 18, 1.6],
+            "line-opacity": 0.6
+          }
+        }, beforeId);
+
+        map.on("click", "parks-fill", event => {
+          const f = event.features && event.features[0];
+          if (!f) return;
+          const p = f.properties || {};
+          const areaM2 = Number(p.shape_area || 0);
+          const areaText = Number.isFinite(areaM2) && areaM2 > 0
+            ? (areaM2 >= 10000 ? `${(areaM2 / 10000).toFixed(2)} ha` : `${Math.round(areaM2)} m²`)
+            : "Not available";
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">${escapeHtml(p.park_name || "Park")}</div>
+              ${popupRow("Address", p.street_address)}
+              ${popupRow("Suburb", p.suburb)}
+              ${popupRow("Post code", p.post_code)}
+              ${popupRow("Area", areaText)}
+            `)
+            .addTo(map);
+        });
+        map.on("mouseenter", "parks-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "parks-fill", () => { map.getCanvas().style.cursor = ""; });
+
+        document.getElementById("parks-note").textContent =
+          `${geojson.features.length.toLocaleString("en-AU")} parks · ~${totalKm2} km²`;
+      } catch (error) {
+        console.error("loadParks failed:", error);
+        const note = document.getElementById("parks-note");
+        note.textContent = `Parks load failed: ${String(error.message || error).slice(0, 80)}`;
+        note.style.color = "#f85149";
+      }
+    }
+
+    // -------------------- BIKESPOT 2023 --------------------
+
+    // Fetch BCC suburb boundaries and return a flat array of polygon rings for the
+    // Brisbane LGA mainland (island localities excluded). Cached. Returns null on failure
+    // so the caller can fall back to showing unfiltered points.
+    let _suburbRingsCache;  // undefined = not tried, null = failed, array = ready
+    async function getBrisbaneSuburbRings() {
+      if (_suburbRingsCache !== undefined) return _suburbRingsCache;
+      try {
+        let geojson = readCache(CACHE_KEYS.suburbpoly);
+        if (!geojson) {
+          const response = await fetchWithTimeout(SUBURB_BOUNDARIES_URL, 20000);
+          if (!response.ok) throw new Error(`Suburb boundaries request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("Suburb boundaries: unexpected shape");
+          writeCache(CACHE_KEYS.suburbpoly, geojson);
+        }
+
+        // Detect the locality/suburb name field from the first feature
+        const sampleProps = (geojson.features[0] && geojson.features[0].properties) || {};
+        const nameField = ["suburb", "locality", "name", "suburb_name", "loc_name"]
+          .find(k => k in sampleProps) || null;
+
+        const rings = [];
+        for (const f of geojson.features) {
+          // Exclude island localities by name (if we found a usable name field)
+          if (nameField) {
+            const raw = String(f.properties[nameField] || "").trim().toUpperCase();
+            if (EXCLUDED_ISLAND_LOCALITIES.has(raw)) continue;
+          }
+          const g = f.geometry;
+          if (!g) continue;
+          if (g.type === "Polygon") g.coordinates.forEach(r => rings.push(r));
+          else if (g.type === "MultiPolygon") g.coordinates.forEach(poly => poly.forEach(r => rings.push(r)));
+        }
+        _suburbRingsCache = rings.length ? rings : null;
+      } catch (error) {
+        console.warn("Suburb boundary filter unavailable:", error.message);
+        _suburbRingsCache = null;
+      }
+      return _suburbRingsCache;
+    }
+
+    async function loadBikeSpot() {
+      try {
+        document.getElementById("bikespot-note").textContent = "Loading BikeSpot survey data";
+
+        let geojson = readCache(CACHE_KEYS.bikespot);
+
+        if (!geojson) {
+          const response = await fetchWithTimeout(BIKESPOT_URL, 15000);
+          if (!response.ok) throw new Error(`BikeSpot file request failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("BikeSpot: unexpected file shape");
+          writeCache(CACHE_KEYS.bikespot, geojson);
+        }
+
+        // Strict Brisbane LGA filter using BCC suburb boundaries (islands excluded).
+        // Graceful fallback: if the boundary fetch fails, show the bbox-filtered points as-is.
+        let features = geojson.features;
+        const rings = await getBrisbaneSuburbRings();
+        if (rings) {
+          const before = features.length;
+          features = features.filter(f => {
+            const c = f.geometry && f.geometry.coordinates;
+            return c && pointInPolygon(c[0], c[1], rings);
+          });
+          console.log(`BikeSpot: ${features.length} of ${before} points inside Brisbane suburbs (islands excluded)`);
+        } else {
+          console.warn("BikeSpot: suburb filter unavailable — showing bbox-filtered points");
+        }
+        const filtered = { type: "FeatureCollection", features };
+
+        map.addSource("bikespot", { type: "geojson", data: filtered });
+
+        // Colour by Location Type: green = safe spot, red = unsafe spot
+        const colourExpr = ["match", ["get", "Location Type"],
+          "safe spot", "#3fb950",
+          "unsafe spot", "#f85149",
+          "#8b949e"];
+
+        map.addLayer({
+          id: "bikespot-circles",
+          type: "circle",
+          source: "bikespot",
+          layout: { visibility: "none" },
+          paint: {
+            // Radius scales purely by community support (Supports), which is an integer in
+            // the data. A property-only interpolate is more reliable than nesting it inside a
+            // zoom interpolate (the nested form did not render distinct sizes). Trade-off:
+            // pins no longer grow with zoom, but they do scale clearly by support.
+            // Anchored on the data percentiles (median 2, p90 ~11, max 52).
+            "circle-radius": [
+              "interpolate", ["linear"], ["to-number", ["get", "Supports"], 0],
+              0, 3,
+              5, 6,
+              15, 11,
+              30, 17,
+              52, 24
+            ],
+            "circle-color": colourExpr,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 0.8,
+            "circle-opacity": 0.8
+          }
+        });
+
+        map.on("click", "bikespot-circles", event => {
+          const f = event.features && event.features[0];
+          if (!f) return;
+          const p = f.properties || {};
+          const isUnsafe = p["Location Type"] === "unsafe spot";
+          const reason = isUnsafe ? p["Main Unsafe Reason"] : p["Main Safe Reason"];
+          const title = isUnsafe ? "Unsafe spot (perceived)" : "Safe spot (perceived)";
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">${escapeHtml(title)}</div>
+              ${popupRow("Location", p.Location)}
+              ${popupRow("Reason", reason)}
+              ${popupRow("Description", p.Description)}
+              ${popupRow("Infrastructure", p["Infrastructure Type"])}
+              ${popupRow("Purpose", p.Purpose)}
+              ${popupRow("Community support", p.Supports)}
+            `)
+            .addTo(map);
+        });
+        map.on("mouseenter", "bikespot-circles", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "bikespot-circles", () => { map.getCanvas().style.cursor = ""; });
+
+        // Tally safe vs unsafe for the layer note (from the filtered set)
+        let safe = 0, unsafe = 0;
+        for (const f of features) {
+          const t = f.properties && f.properties["Location Type"];
+          if (t === "safe spot") safe += 1;
+          else if (t === "unsafe spot") unsafe += 1;
+        }
+        document.getElementById("bikespot-note").textContent =
+          `${unsafe.toLocaleString("en-AU")} unsafe · ${safe.toLocaleString("en-AU")} safe spots`;
+      } catch (error) {
+        console.error("loadBikeSpot failed:", error);
+        const note = document.getElementById("bikespot-note");
+        note.textContent = `BikeSpot load failed: ${String(error.message || error).slice(0, 80)}`;
+        note.style.color = "#f85149";
+      }
+    }
+
+    // -------------------- CYCLING TO WORK (CENSUS 2021) --------------------
+
+    async function loadCyclingToWork() {
+      try {
+        document.getElementById("ctw-note").textContent = "Loading Census cycling data";
+
+        let geojson = readCache(CACHE_KEYS.ctw);
+        if (!geojson) {
+          const response = await fetchWithTimeout(CYCLING_TO_WORK_URL, 15000);
+          if (!response.ok) throw new Error(`Cycling-to-work file failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("Cycling-to-work: unexpected shape");
+          writeCache(CACHE_KEYS.ctw, geojson);
+        }
+
+        map.addSource("cycling-to-work", { type: "geojson", data: geojson });
+
+        // Choropleth shaded by % who cycle to work. Breaks from the data distribution
+        // (median 0.5%, p90 ~3%, max ~8%). Null (no data) renders transparent grey.
+        const fillColour = [
+          "case", ["==", ["get", "pct_cycle"], null], "#3a3a3a",
+          ["interpolate", ["linear"], ["get", "pct_cycle"],
+            0,   "#0d2818",
+            0.5, "#14532d",
+            1.5, "#15803d",
+            3,   "#22c55e",
+            6,   "#86efac"]
+        ];
+
+        // Place below bikeways so the network stays readable on top
+        const beforeId = map.getLayer("bikeway-sections-line-glow") ? "bikeway-sections-line-glow" : undefined;
+
+        map.addLayer({
+          id: "ctw-fill",
+          type: "fill",
+          source: "cycling-to-work",
+          layout: { visibility: "none" },
+          paint: { "fill-color": fillColour, "fill-opacity": 0.6 }
+        }, beforeId);
+
+        map.addLayer({
+          id: "ctw-outline",
+          type: "line",
+          source: "cycling-to-work",
+          layout: { visibility: "none" },
+          paint: { "line-color": "#0a3d20", "line-width": 0.4, "line-opacity": 0.5 }
+        }, beforeId);
+
+        map.on("click", "ctw-fill", event => {
+          const f = event.features && event.features[0];
+          if (!f) return;
+          const p = f.properties || {};
+          const pct = (p.pct_cycle === null || p.pct_cycle === undefined) ? "No data" : `${p.pct_cycle}%`;
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`
+              <div class="popup-title">${escapeHtml(p.sa2 || "SA2")}</div>
+              ${popupRow("Cycle to work", pct)}
+              ${popupRow("Cyclists", p.n_cycle)}
+              ${popupRow("Travelled to work", p.n_travelled)}
+            `)
+            .addTo(map);
+        });
+        map.on("mouseenter", "ctw-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "ctw-fill", () => { map.getCanvas().style.cursor = ""; });
+
+        document.getElementById("ctw-note").textContent =
+          `${geojson.features.length} SA2 areas · Census 2021`;
+      } catch (error) {
+        console.error("loadCyclingToWork failed:", error);
+        const note = document.getElementById("ctw-note");
+        note.textContent = `Cycling-to-work load failed: ${String(error.message || error).slice(0, 70)}`;
+        note.style.color = "#f85149";
+      }
+    }
+
+    // -------------------- ELECTRIC MICROMOBILITY --------------------
+
+    async function loadMicromobility() {
+      try {
+        document.getElementById("micro-note").textContent = "Loading micromobility routesu2026";
+        let geojson = readCache(CACHE_KEYS.micro);
+        if (!geojson) {
+          const response = await fetchWithTimeout(MICROMOBILITY_URL, 20000);
+          if (!response.ok) throw new Error(`Micromobility fetch failed: ${response.status}`);
+          geojson = await response.json();
+          if (!geojson.features) throw new Error("Micromobility: unexpected shape");
+          writeCache(CACHE_KEYS.micro, geojson);
+        }
+
+        map.addSource("micromobility", { type: "geojson", data: geojson });
+
+        // Colour and width scale with trip count on a log scale.
+        // Log breaks: 100 (min) → 972400 (max), ~6 orders of magnitude compressed.
+        const logInterp = ["interpolate", ["linear"],
+          ["ln", ["+", ["get", "count"], 1]],
+          Math.log(100),   "#f7a737",
+          Math.log(1000),  "#d44ea0",
+          Math.log(10000), "#9e3faf",
+          Math.log(100000),"#5a1a9e"
+        ];
+        const widthInterp = ["interpolate", ["linear"],
+          ["ln", ["+", ["get", "count"], 1]],
+          Math.log(100),    1,
+          Math.log(10000),  2,
+          Math.log(100000), 4
+        ];
+
+        map.addLayer({
+          id: "micro-lines",
+          type: "line",
+          source: "micromobility",
+          layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": logInterp, "line-width": widthInterp, "line-opacity": 0.75 }
+        });
+
+        map.on("click", "micro-lines", event => {
+          const f = event.features && event.features[0];
+          if (!f) return;
+          const count = f.properties.count;
+          const label = count >= 1000 ? `${(count/1000).toFixed(1)}k` : String(count);
+          new maplibregl.Popup({ closeButton: true, closeOnClick: true })
+            .setLngLat(event.lngLat)
+            .setHTML(`<div class="popup-title">Micromobility route</div>${popupRow("Trip count", label)}`)
+            .addTo(map);
+        });
+        map.on("mouseenter", "micro-lines", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "micro-lines", () => { map.getCanvas().style.cursor = ""; });
+
+        const n = geojson.features.length.toLocaleString();
+        document.getElementById("micro-note").textContent = `${n} route segments u00b7 all vehicle types`;
+      } catch (error) {
+        console.error("loadMicromobility failed:", error);
+        const note = document.getElementById("micro-note");
+        note.textContent = `Micromobility load failed: ${String(error.message||error).slice(0,70)}`;
+        note.style.color = "#d73a2a";
+      }
+    }
+
+    // -------------------- QLDTRAFFIC EVENTS --------------------
+
+    // Polling state — survives across calls
+    const trafficState = {
+      timer: null,
+      lastFetch: null,
+      lastError: null
+    };
+
+    async function loadTrafficEvents() {
+      const listEl = document.getElementById("traffic-list");
+      const statusEl = document.getElementById("traffic-status");
+
+      // Refuse to fire requests if the placeholder hasn't been replaced —
+      // saves a confusing 403 from the API and gives a clearer error.
+      if (QLDTRAFFIC_API_KEY === "PASTE_PUBLIC_KEY_HERE" || !QLDTRAFFIC_API_KEY) {
+        listEl.innerHTML = `<div class="traffic-error">API key not set. Paste the public QLDTraffic key into <code>QLDTRAFFIC_API_KEY</code> in the source.</div>`;
+        statusEl.style.color = "#f85149";
+        statusEl.title = "API key missing";
+        return;
+      }
+
+      try {
+        const targetUrl = `${QLDTRAFFIC_EVENTS_URL}?apikey=${encodeURIComponent(QLDTRAFFIC_API_KEY)}`;
+        const url = `${QLDTRAFFIC_CORS_PROXY}${encodeURIComponent(targetUrl)}`;
+        const response = await fetchWithTimeout(url, 12000);
+        if (!response.ok) throw new Error(`QLDTraffic returned ${response.status}`);
+        const geojson = await response.json();
+        if (!geojson || !Array.isArray(geojson.features)) throw new Error("Unexpected response shape");
+
+        // Log the first feature once so we can see real schema vs spec
+        maybeLogFirstFeature(geojson.features);
+
+        // Strict Brisbane containment + score for cyclist relevance.
+        // Uses point-in-polygon against the loaded LGA boundary; falls back to bbox
+        // only if the boundary hasn't loaded yet.
+        const candidates = geojson.features
+          .filter(featureIntersectsBrisbane)
+          .map(scoreCyclistRelevance)
+          .filter(scored => scored.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        renderTrafficList(candidates);
+        trafficState.lastFetch = new Date();
+        trafficState.lastError = null;
+        statusEl.style.color = "var(--accent)";
+        statusEl.title = `Updated ${trafficState.lastFetch.toLocaleTimeString("en-AU")}`;
+      } catch (error) {
+        console.error("QLDTraffic load failed:", error);
+        trafficState.lastError = error.message;
+        statusEl.style.color = "#f85149";
+        statusEl.title = `Error: ${error.message}`;
+        // Only show error in panel if we have no prior data — otherwise keep showing last good list
+        if (!trafficState.lastFetch) {
+          listEl.innerHTML = `<div class="traffic-error">Couldn't reach QLDTraffic: ${escapeHtml(error.message)}. This may be a CORS issue or a temporary outage.</div>`;
+        }
+      }
+    }
+
+    // Strict Brisbane containment.
+    // The bbox approach we tried first was wrong: Brisbane LGA is irregular (river bends,
+    // coastal islands, Logan/Moreton Bay overlap) and a rectangular bbox includes large
+    // areas outside the LGA. We now require *all* coordinates of *all* geometries in a
+    // feature to fall inside the LGA polygon loaded from the QLD admin boundaries service.
+    //
+    // Fallback: if the boundary hasn't loaded yet (race), use the bbox — strict containment
+    // is impossible without the polygon. This is rare since boundary load fires in parallel
+    // with the first traffic fetch and usually finishes first.
+    function featureIntersectsBrisbane(feature) {
+      const g = feature && feature.geometry;
+      if (!g) return false;
+      const coords = allCoordinates(g);
+      if (!coords.length) return false;
+
+      // Prefer strict polygon containment if we have the boundary
+      const polygon = brisbanePolygonCoords();
+      if (polygon) {
+        return coords.every(([lon, lat]) => pointInPolygon(lon, lat, polygon));
+      }
+      // Fallback to bbox
+      return coords.every(([lon, lat]) =>
+        lon >= BRISBANE_BBOX.minLon && lon <= BRISBANE_BBOX.maxLon &&
+        lat >= BRISBANE_BBOX.minLat && lat <= BRISBANE_BBOX.maxLat
+      );
+    }
+
+    // Walk every coordinate in any GeoJSON geometry — including GeometryCollections.
+    function allCoordinates(geometry) {
+      if (!geometry) return [];
+      const out = [];
+      const collect = g => {
+        if (!g) return;
+        if (g.type === "Point") out.push(g.coordinates);
+        else if (g.type === "LineString" || g.type === "MultiPoint") g.coordinates.forEach(c => out.push(c));
+        else if (g.type === "Polygon" || g.type === "MultiLineString") g.coordinates.flat(1).forEach(c => out.push(c));
+        else if (g.type === "MultiPolygon") g.coordinates.flat(2).forEach(c => out.push(c));
+        else if (g.type === "GeometryCollection" && g.geometries) g.geometries.forEach(collect);
+      };
+      collect(geometry);
+      return out;
+    }
+
+    // Representative coordinate for "fly to this event" — uses the geometric centre
+    // of all coordinates, which is more honest than "first point of first geometry"
+    // (which can be the start of a multi-km closure, far from the actual issue).
+    function representativeCoordinate(geometry) {
+      const coords = allCoordinates(geometry);
+      if (!coords.length) return null;
+      let sumLon = 0, sumLat = 0;
+      for (const [lon, lat] of coords) { sumLon += lon; sumLat += lat; }
+      return [sumLon / coords.length, sumLat / coords.length];
+    }
+
+    // Cached extracted polygon rings from the loaded Brisbane boundary GeoJSON.
+    // Computed lazily on first use; reused thereafter.
+    let _brisbanePolygonCache = null;
+    function brisbanePolygonCoords() {
+      if (_brisbanePolygonCache !== null) return _brisbanePolygonCache;
+      const src = map.getSource("brisbane-boundary");
+      if (!src || !src._data) { _brisbanePolygonCache = null; return null; }
+      const data = src._data;
+      const rings = [];
+      const f = data.features && data.features[0];
+      if (!f || !f.geometry) { _brisbanePolygonCache = null; return null; }
+      const g = f.geometry;
+      if (g.type === "Polygon") g.coordinates.forEach(r => rings.push(r));
+      else if (g.type === "MultiPolygon") g.coordinates.forEach(poly => poly.forEach(r => rings.push(r)));
+      _brisbanePolygonCache = rings.length ? rings : null;
+      return _brisbanePolygonCache;
+    }
+
+    // Ray-casting point-in-polygon. Handles multi-ring (e.g. MultiPolygon) by
+    // toggling inclusion on each ring crossing — odd = inside, even = outside.
+    function pointInPolygon(lon, lat, rings) {
+      let inside = false;
+      for (const ring of rings) {
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const xi = ring[i][0], yi = ring[i][1];
+          const xj = ring[j][0], yj = ring[j][1];
+          const intersect = ((yi > lat) !== (yj > lat)) &&
+            (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+          if (intersect) inside = !inside;
+        }
+      }
+      return inside;
+    }
+
+    // Cyclist relevance heuristic.
+    // NO authoritative "affects cyclists" field exists in this feed — this is interpretation.
+    // High-impact for cyclists: flooded paths/underpasses, full road closures (cyclists detour),
+    // hazards on shared paths, debris on roads.
+    // Medium: lane blockages on arterials (cars merge into bike lanes), roadworks (narrow lanes).
+    // Low: most other events. Score 0 = not relevant, hidden.
+    function scoreCyclistRelevance(feature) {
+      const p = feature.properties || {};
+      const type = String(p.event_type || "").toLowerCase();
+      const subtype = String(p.event_subtype || "").toLowerCase();
+      const impactType = String((p.impact && p.impact.impact_type) || "").toLowerCase();
+      const impactSubtype = String((p.impact && p.impact.impact_subtype) || "").toLowerCase();
+
+      let score = 0;
+      let severity = "low";
+
+      // High-relevance signals
+      if (type === "flooding") { score += 5; severity = "high"; }
+      if (type === "hazard") { score += 3; severity = "medium"; }
+      if (impactType.includes("road closed") || impactType.includes("path closed")) { score += 4; severity = "high"; }
+      if (subtype.includes("debris") || subtype.includes("object on road")) { score += 3; severity = "medium"; }
+      if (subtype.includes("flooding") || subtype.includes("water")) { score += 4; severity = "high"; }
+
+      // Medium-relevance signals
+      if (type === "roadworks") { score += 1; if (severity === "low") severity = "medium"; }
+      if (type === "crash") { score += 2; if (severity === "low") severity = "medium"; }
+      if (impactType.includes("lane") && impactType.includes("blocked")) { score += 1; }
+
+      // Penalise motorway-only events — cyclists aren't there
+      const roads = (p.road_summary && p.road_summary.local) || [];
+      const onlyMotorway = roads.length > 0 && roads.every(r =>
+        String(r.road_name || "").toLowerCase().includes("motorway") ||
+        String(r.road_name || "").toLowerCase().includes("m1") ||
+        String(r.road_name || "").toLowerCase().includes("m3")
+      );
+      if (onlyMotorway) score = Math.max(0, score - 3);
+
+      // Boost for events in Brisbane suburbs vs out-of-area
+      // (already filtered by bbox; this is a no-op placeholder for future per-suburb weighting)
+
+      return { feature, score, severity };
+    }
+
+    function renderTrafficList(scoredFeatures) {
+      const listEl = document.getElementById("traffic-list");
+      // Clear any prior highlight — its source feature may no longer exist after a refresh
+      clearTrafficHighlight();
+      if (!scoredFeatures.length) {
+        listEl.innerHTML = `<div class="traffic-empty">No cyclist-relevant traffic events in Brisbane right now.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = scoredFeatures.map(({ feature, severity }) => {
+        const p = feature.properties || {};
+        const type = p.event_type || "Event";
+        const subtype = p.event_subtype && p.event_subtype !== "N/A" ? ` — ${p.event_subtype}` : "";
+        const location = formatTrafficLocation(p);
+        const meta = formatTrafficMeta(p);
+        return `
+          <div class="traffic-item severity-${severity}" data-feature-id="${escapeHtml(String(p.id || ""))}">
+            <div class="traffic-type">${escapeHtml(type)}${escapeHtml(subtype)}</div>
+            <div class="traffic-location">${escapeHtml(location)}</div>
+            <div class="traffic-meta">${escapeHtml(meta)}</div>
+          </div>
+        `;
+      }).join("");
+
+      // Wire up click handlers — pan to event centroid AND highlight the affected geometry
+      listEl.querySelectorAll(".traffic-item").forEach((el, i) => {
+        el.addEventListener("click", () => {
+          const feature = scoredFeatures[i].feature;
+          highlightTrafficEvent(feature);
+          const coord = representativeCoordinate(feature.geometry);
+          if (coord) map.flyTo({ center: coord, zoom: 15, duration: 800 });
+
+          // Visually mark which sidebar item is selected
+          listEl.querySelectorAll(".traffic-item").forEach(item => item.classList.remove("selected"));
+          el.classList.add("selected");
+        });
+      });
+    }
+
+    // Highlight the affected geometry of a clicked traffic event.
+    // Handles all geometry types by flattening a GeometryCollection (common in QLDTraffic)
+    // into separate features and rendering them via three filtered layers (line, point, polygon).
+    function highlightTrafficEvent(feature) {
+      const flattened = flattenToSingleTypeFeatures(feature.geometry);
+      const data = { type: "FeatureCollection", features: flattened };
+      const sourceId = "traffic-highlight";
+
+      if (map.getSource(sourceId)) {
+        map.getSource(sourceId).setData(data);
+        return;
+      }
+
+      // First-time setup — source + three layers, all filtered by geometry type
+      map.addSource(sourceId, { type: "geojson", data });
+
+      // Wide red glow underneath line geometries
+      map.addLayer({
+        id: "traffic-highlight-line-glow",
+        type: "line",
+        source: sourceId,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ff3b30",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 18],
+          "line-opacity": 0.28
+        }
+      });
+
+      // Solid red line on top
+      map.addLayer({
+        id: "traffic-highlight-line",
+        type: "line",
+        source: sourceId,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ff3b30",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 7],
+          "line-opacity": 0.95
+        }
+      });
+
+      // Red ring for Point geometries
+      map.addLayer({
+        id: "traffic-highlight-point",
+        type: "circle",
+        source: sourceId,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 14],
+          "circle-color": "rgba(255, 59, 48, 0.25)",
+          "circle-stroke-color": "#ff3b30",
+          "circle-stroke-width": 3
+        }
+      });
+
+      // Translucent red fill for Polygon geometries (rare — e.g., flood zone)
+      map.addLayer({
+        id: "traffic-highlight-fill",
+        type: "fill",
+        source: sourceId,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: {
+          "fill-color": "#ff3b30",
+          "fill-opacity": 0.18,
+          "fill-outline-color": "#ff3b30"
+        }
+      });
+    }
+
+    // Split a (possibly GeometryCollection) geometry into a flat array of features,
+    // one per primitive geometry. Makes downstream filtering by geometry-type trivial.
+    function flattenToSingleTypeFeatures(geometry) {
+      if (!geometry) return [];
+      if (geometry.type === "GeometryCollection") {
+        const out = [];
+        for (const g of (geometry.geometries || [])) {
+          out.push(...flattenToSingleTypeFeatures(g));
+        }
+        return out;
+      }
+      return [{ type: "Feature", geometry, properties: {} }];
+    }
+
+    function clearTrafficHighlight() {
+      const sourceId = "traffic-highlight";
+      if (map.getSource(sourceId)) {
+        map.getSource(sourceId).setData({ type: "FeatureCollection", features: [] });
+      }
+    }
+
+    // One-time debug: log the shape of the first feature so we can see what the
+    // API actually returns. Useful because the v1.10 spec PDF doesn't match real
+    // responses in some cases. Logged once per page load.
+    let _trafficShapeLogged = false;
+    function maybeLogFirstFeature(features) {
+      if (_trafficShapeLogged || !features || !features.length) return;
+      _trafficShapeLogged = true;
+      const f = features[0];
+      console.log("[QLDTraffic] First feature shape:", {
+        property_keys: Object.keys(f.properties || {}),
+        property_sample: f.properties,
+        geometry_type: f.geometry && f.geometry.type
+      });
+    }
+
+    // Try multiple property paths the QLDTraffic API has been observed to use.
+    // The v1.10 spec shows road_summary.local; real responses may use a different name.
+    // We probe in priority order and accept whichever resolves.
+    function formatTrafficLocation(p) {
+      // Path 1: documented spec structure
+      const localRoads = p.road_summary && (p.road_summary.local || p.road_summary.localities);
+      if (Array.isArray(localRoads) && localRoads.length > 0) {
+        const r = localRoads[0];
+        const parts = [r.road_name || r.name, r.suburb || r.locality].filter(Boolean);
+        if (parts.length) return parts.join(", ");
+      }
+
+      // Path 2: top-level roads array (alternate seen in some open data feeds)
+      if (Array.isArray(p.roads) && p.roads.length > 0) {
+        const r = p.roads[0];
+        const parts = [r.road_name || r.name, r.suburb || r.locality].filter(Boolean);
+        if (parts.length) return parts.join(", ");
+      }
+
+      // Path 3: human-readable description/headline fields
+      if (p.description && typeof p.description === "string") return truncate(p.description, 80);
+      if (p.headline && typeof p.headline === "string") return truncate(p.headline, 80);
+      if (p.title && typeof p.title === "string") return truncate(p.title, 80);
+
+      // Path 4: impact metadata (last resort)
+      if (p.impact && p.impact.towards) return `Towards ${p.impact.towards}`;
+
+      return "Location unavailable";
+    }
+
+    function truncate(s, n) {
+      const t = String(s).trim();
+      return t.length > n ? t.slice(0, n - 1) + "…" : t;
+    }
+
+    function formatTrafficMeta(p) {
+      const bits = [];
+      if (p.impact && p.impact.direction) bits.push(p.impact.direction);
+      if (p.impact && p.impact.impact_type) bits.push(p.impact.impact_type);
+      if (p.last_updated) {
+        const updated = new Date(p.last_updated);
+        if (!isNaN(updated)) bits.push(`updated ${updated.toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`);
+      }
+      return bits.join(" · ") || "Details unavailable";
+    }
+
+    function startTrafficPolling() {
+      // Fire once immediately, then on interval
+      loadTrafficEvents();
+      if (trafficState.timer) clearInterval(trafficState.timer);
+      trafficState.timer = setInterval(loadTrafficEvents, QLDTRAFFIC_POLL_INTERVAL_MS);
+    }
+
+    // -------------------- ROUTING (OpenRouteService) --------------------
+
+    const routeState = {
+      mode: null,                 // 'start' | 'end' | null
+      start: null,                // [lon, lat]
+      end: null,
+      startMarker: null,
+      endMarker: null,
+      computing: false,
+      routesDrawn: false
+    };
+
+    // Two profiles to fetch in parallel. ORS treats them as parameter variants of cycling-regular.
+    // IMPORTANT — what ORS supports for cycling-* profiles:
+    //   - `preference: fastest`     → minimum time, will use arterials
+    //   - `preference: recommended` → ORS's default cycling weighting, biases toward
+    //     OSM-tagged cycling infrastructure (bike paths, cycleways, etc.)
+    //   - `preference: shortest`    → minimum distance
+    //   The `quiet` and `green` weightings in profile_params apply to foot-* profiles ONLY,
+    //   not cycling. Passing them to cycling-regular triggers ORS error 2002 (incorrect format).
+    //   So "Most Cycling Friendly" here is plain `preference: recommended` with no custom options.
+    // A single cycling route (ORS cycling-regular, recommended preference — biases toward
+    // OSM-tagged cycling infrastructure). Kept as a one-element array so the existing
+    // parallel-fetch / render machinery works unchanged.
+    const ROUTE_PROFILES = [
+      {
+        key: "cycling",
+        label: "Cycling route",
+        colour: "#00d4aa",
+        body: () => ({
+          coordinates: [routeState.start, routeState.end],
+          preference: "recommended",
+          instructions: false,
+          elevation: true
+        })
+      }
+    ];
+
+    function initRouting() {
+      document.getElementById("route-set-start").addEventListener("click", () => {
+        routeState.mode = "start";
+        updateRouteUI();
+      });
+      document.getElementById("route-set-end").addEventListener("click", () => {
+        routeState.mode = "end";
+        updateRouteUI();
+      });
+      document.getElementById("route-compare").addEventListener("click", computeRoutes);
+      document.getElementById("route-clear").addEventListener("click", clearRoutes);
+
+      // Click on map to set start/end when in pick mode
+      map.on("click", event => {
+        if (!routeState.mode) return;
+        const coords = [event.lngLat.lng, event.lngLat.lat];
+        if (routeState.mode === "start") setRouteStart(coords);
+        else if (routeState.mode === "end") setRouteEnd(coords);
+        routeState.mode = null;
+        updateRouteUI();
+      });
+    }
+
+    function setRouteStart(coords) {
+      routeState.start = coords;
+      if (routeState.startMarker) routeState.startMarker.remove();
+      routeState.startMarker = new maplibregl.Marker({ color: "#00d4aa", draggable: true })
+        .setLngLat(coords)
+        .addTo(map);
+      routeState.startMarker.on("dragend", () => {
+        const ll = routeState.startMarker.getLngLat();
+        routeState.start = [ll.lng, ll.lat];
+        // Auto-recompute if both points present
+        if (routeState.start && routeState.end) computeRoutes();
+      });
+    }
+
+    function setRouteEnd(coords) {
+      routeState.end = coords;
+      if (routeState.endMarker) routeState.endMarker.remove();
+      routeState.endMarker = new maplibregl.Marker({ color: "#ff5a52", draggable: true })
+        .setLngLat(coords)
+        .addTo(map);
+      routeState.endMarker.on("dragend", () => {
+        const ll = routeState.endMarker.getLngLat();
+        routeState.end = [ll.lng, ll.lat];
+        if (routeState.start && routeState.end) computeRoutes();
+      });
+    }
+
+    function updateRouteUI() {
+      const startBtn = document.getElementById("route-set-start");
+      const endBtn = document.getElementById("route-set-end");
+      const compareBtn = document.getElementById("route-compare");
+      const status = document.getElementById("route-status");
+
+      startBtn.classList.toggle("active", routeState.mode === "start");
+      endBtn.classList.toggle("active", routeState.mode === "end");
+      compareBtn.disabled = !(routeState.start && routeState.end) || routeState.computing;
+
+      if (routeState.computing) {
+        status.innerHTML = "Computing route…";
+      } else if (routeState.mode === "start") {
+        status.innerHTML = "Click on the map to place the <strong>start</strong>.";
+      } else if (routeState.mode === "end") {
+        status.innerHTML = "Click on the map to place the <strong>destination</strong>.";
+      } else if (routeState.start && routeState.end) {
+        status.innerHTML = "Both points set. Click <strong>Get cycling route</strong>.";
+      } else if (routeState.start) {
+        status.innerHTML = "Start set. Now click <strong>Set destination</strong>.";
+      } else {
+        status.innerHTML = "Click <strong>Set start</strong>, then click on the map.";
+      }
+    }
+
+    async function computeRoutes() {
+      if (!routeState.start || !routeState.end) return;
+
+      // Refuse to fire if the placeholder key is still in place
+      if (ORS_API_KEY === "PASTE_ORS_KEY_HERE" || !ORS_API_KEY) {
+        document.getElementById("route-results").innerHTML =
+          `<div class="traffic-error">ORS API key not set. Generate a free key at openrouteservice.org/dev and paste it into <code>ORS_API_KEY</code> in the source.</div>`;
+        return;
+      }
+
+      routeState.computing = true;
+      updateRouteUI();
+      removeRouteLayers();
+
+      // Fire both requests in parallel — independent failures are OK
+      const results = await Promise.allSettled(
+        ROUTE_PROFILES.map(profile => fetchRoute(profile))
+      );
+
+      // Render whichever succeeded
+      const renderedRoutes = [];
+      results.forEach((result, idx) => {
+        const profile = ROUTE_PROFILES[idx];
+        if (result.status === "fulfilled" && result.value) {
+          drawRouteLine(profile, result.value);
+          renderedRoutes.push({ profile, summary: extractRouteSummary(result.value) });
+        } else {
+          console.error(`ORS ${profile.key} route failed:`, result.reason);
+          renderedRoutes.push({ profile, error: result.reason && result.reason.message || "Failed" });
+        }
+      });
+
+      const drawn = renderedRoutes.filter(r => r.summary);
+      renderRouteResults(renderedRoutes, "");
+
+      // Fit map to the route
+      if (drawn.length) fitMapToRoutes(drawn.map(r => r.summary.geojson));
+
+      routeState.routesDrawn = true;
+      routeState.computing = false;
+      updateRouteUI();
+    }
+
+    async function fetchRoute(profile) {
+      const response = await fetchWithTimeout(ORS_DIRECTIONS_URL, 15000, {
+        method: "POST",
+        headers: {
+          "Authorization": ORS_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "application/geo+json, application/json"
+        },
+        body: JSON.stringify(profile.body())
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`ORS ${response.status}: ${text.slice(0, 120)}`);
+      }
+      return await response.json();
+    }
+
+    function extractRouteSummary(geojson) {
+      const feature = geojson && geojson.features && geojson.features[0];
+      if (!feature) return null;
+      const summary = (feature.properties && feature.properties.summary) || {};
+      const ascent = feature.properties && feature.properties.ascent;
+      return {
+        geojson,
+        distanceKm: (summary.distance || 0) / 1000,
+        durationMin: (summary.duration || 0) / 60,
+        ascentM: typeof ascent === "number" ? ascent : null
+      };
+    }
+
+    function drawRouteLine(profile, geojson) {
+      const sourceId = `route-${profile.key}`;
+      const glowLayer = `route-${profile.key}-glow`;
+      const lineLayer = `route-${profile.key}-line`;
+
+      map.addSource(sourceId, { type: "geojson", data: geojson });
+
+      // Glow underneath
+      map.addLayer({
+        id: glowLayer,
+        type: "line",
+        source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": profile.colour,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 14],
+          "line-opacity": 0.22
+        }
+      });
+
+      // Main line on top
+      map.addLayer({
+        id: lineLayer,
+        type: "line",
+        source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": profile.colour,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 5.5],
+          "line-opacity": 0.95
+        }
+      });
+    }
+
+    function removeRouteLayers() {
+      for (const profile of ROUTE_PROFILES) {
+        const ids = [`route-${profile.key}-glow`, `route-${profile.key}-line`];
+        ids.forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+        const sourceId = `route-${profile.key}`;
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      }
+    }
+
+    function fitMapToRoutes(geojsonList) {
+      const allCoords = [];
+      for (const gj of geojsonList) {
+        if (!gj || !gj.features) continue;
+        for (const f of gj.features) {
+          for (const c of allCoordinates(f.geometry)) allCoords.push(c);
+        }
+      }
+      if (!allCoords.length) return;
+      const bounds = new maplibregl.LngLatBounds(allCoords[0], allCoords[0]);
+      for (const c of allCoords) bounds.extend(c);
+      map.fitBounds(bounds, { padding: 80, duration: 700, maxZoom: 15 });
+    }
+
+    function renderRouteResults(routes, identicalNote) {
+      const container = document.getElementById("route-results");
+      const cards = routes.map(r => {
+        if (r.error) {
+          return `<div class="route-card ${r.profile.key}">
+            <div class="route-card-label">${escapeHtml(r.profile.label)}</div>
+            <div class="route-card-stats" style="color:#f85149">${escapeHtml(r.error)}</div>
+          </div>`;
+        }
+        const s = r.summary;
+        const dist = s.distanceKm.toLocaleString("en-AU", { maximumFractionDigits: 2 });
+        const time = Math.round(s.durationMin);
+        const ascent = s.ascentM !== null ? ` · <span><strong>${Math.round(s.ascentM)}</strong> m climb</span>` : "";
+        return `<div class="route-card ${r.profile.key}">
+          <div class="route-card-label">${escapeHtml(r.profile.label)}</div>
+          <div class="route-card-stats">
+            <span><strong>${dist}</strong> km</span>
+            <span><strong>${time}</strong> min</span>${ascent}
+          </div>
+        </div>`;
+      }).join("");
+
+      const noteHtml = identicalNote
+        ? `<div class="metric-caption" style="margin-top:4px;">${escapeHtml(identicalNote)}</div>`
+        : "";
+
+      container.innerHTML = cards + noteHtml;
+    }
+
+    function clearRoutes() {
+      if (routeState.startMarker) routeState.startMarker.remove();
+      if (routeState.endMarker) routeState.endMarker.remove();
+      routeState.start = null;
+      routeState.end = null;
+      routeState.startMarker = null;
+      routeState.endMarker = null;
+      routeState.mode = null;
+      routeState.routesDrawn = false;
+      removeRouteLayers();
+      document.getElementById("route-results").innerHTML = "";
+      updateRouteUI();
+    }
+
+    // -------------------- UTILITIES --------------------
+
+    // Haversine distance in metres between two [lon, lat] points.
+    // Earth radius 6371008.8 m (mean radius per WGS-84). Good to ~0.5% accuracy
+    // for distances up to a few hundred km — more than enough for street segments.
+    function haversineMetres(a, b) {
+      const R = 6371008.8;
+      const toRad = Math.PI / 180;
+      const lat1 = a[1] * toRad;
+      const lat2 = b[1] * toRad;
+      const dLat = lat2 - lat1;
+      const dLon = (b[0] - a[0]) * toRad;
+      const s = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(s));
+    }
+
+    // Sum geodesic length of all LineString / MultiLineString features, returned in km.
+    // Limitation: this measures the GeoJSON geometry as-loaded. If the source contains
+    // duplicated segments (e.g., parallel facilities on the same road), they are counted
+    // separately. The figure is "km in this dataset", not "km of unique infrastructure".
+    function computeGeoJsonLineKm(geojson) {
+      let metres = 0;
+      const sumLineString = coords => {
+        for (let i = 1; i < coords.length; i++) metres += haversineMetres(coords[i - 1], coords[i]);
+      };
+      for (const feature of geojson.features) {
+        const g = feature.geometry;
+        if (!g) continue;
+        if (g.type === "LineString") sumLineString(g.coordinates);
+        else if (g.type === "MultiLineString") g.coordinates.forEach(sumLineString);
+      }
+      return metres / 1000;
+    }
+    async function fetchWithTimeout(url, timeoutMs = 12000, options = {}) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    function setLayerVisibility(layerKey, visible) {
+      const mapLayers = {
+        "bikeway-sections": ["bikeway-sections-line-glow", "bikeway-sections-line"],
+        "cyclist-crashes":  ["cyclist-crash-heat", "cyclist-crash-points"],
+        "road-hierarchy":   ["road-hierarchy-line"],
+        "bicycle-racks":    ["bicycle-racks-symbol"],
+        "parks":            ["parks-fill", "parks-outline"],
+        "bikespot":         ["bikespot-circles"],
+        "cycling-to-work":  ["ctw-fill", "ctw-outline"],
+        "micromobility":     ["micro-lines"]
+      };
+      layerState[layerKey] = visible;
+      (mapLayers[layerKey] || []).forEach(id => {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+      });
+      updateVisibleCount();
+    }
+
+    function updateVisibleCount() {
+      const el = document.getElementById("visible-count");
+      if (!el) return;  // element was removed in a layout change — silently skip
+      const count = Object.values(layerState).filter(Boolean).length;
+      el.textContent = count;
+    }
+
+    function setStatus(text) {
+      document.getElementById("load-status").textContent = text;
+    }
+
+    function toNumber(value) {
+      if (value === null || value === undefined || value === "") return 0;
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : 0;
+    }
+
+    function popupRow(key, value) {
+      const cleanValue = value === null || value === undefined || value === "" ? "Not available" : String(value);
+      return `<div class="popup-row"><div class="popup-key">${escapeHtml(key)}</div><div class="popup-value">${escapeHtml(cleanValue)}</div></div>`;
+    }
+
+    function formatWidth(value) {
+      if (value === null || value === undefined || value === "") return "Not available";
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? `${numeric.toFixed(1)} m` : value;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function getGeoJsonBounds(geojson) {
+      const coords = [];
+      function collect(geometry) {
+        if (!geometry) return;
+        if (geometry.type === "Point") coords.push(geometry.coordinates);
+        else if (geometry.type === "LineString" || geometry.type === "MultiPoint") geometry.coordinates.forEach(c => coords.push(c));
+        else if (geometry.type === "Polygon" || geometry.type === "MultiLineString") geometry.coordinates.flat(1).forEach(c => coords.push(c));
+        else if (geometry.type === "MultiPolygon") geometry.coordinates.flat(2).forEach(c => coords.push(c));
+        else if (geometry.type === "GeometryCollection") geometry.geometries.forEach(collect);
+      }
+      geojson.features.forEach(feature => collect(feature.geometry));
+      if (!coords.length) return null;
+      const bounds = new maplibregl.LngLatBounds(coords[0], coords[0]);
+      coords.forEach(coord => bounds.extend(coord));
+      return bounds;
+    }
+
+    // -------------------- UI EVENTS --------------------
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(item => item.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach(panel => panel.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById(`panel-${tab.dataset.panel}`).classList.add("active");
+      });
+    });
+
+    document.querySelectorAll(".layer-row").forEach(row => {
+      row.addEventListener("click", event => {
+        event.preventDefault();
+        const layerKey = row.dataset.layer;
+        if (!Object.prototype.hasOwnProperty.call(layerState, layerKey)) return;
+        const nextState = !layerState[layerKey];
+        row.classList.toggle("active", nextState);
+        const toggleBtn = row.querySelector(".toggle");
+        if (toggleBtn) toggleBtn.classList.toggle("on", nextState);
+        setLayerVisibility(layerKey, nextState);
+      });
+    });
+
+    // Legend group collapse — clicking the group header toggles the `collapsed` class
+    document.querySelectorAll(".legend-group-header").forEach(header => {
+      header.addEventListener("click", () => {
+        const targetId = header.dataset.target;
+        const group = document.getElementById(targetId);
+        if (group) group.classList.toggle("collapsed");
+      });
+    });
+  </script>
+</body>
+</html>
