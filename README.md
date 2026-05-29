@@ -22,10 +22,10 @@ Toggle on/off. Only bikeway sections are shown by default.
 | **Road hierarchy** | City Plan 2014 classification for every road segment, from motorway (red) to local street (green). |
 | **Cyclist crashes** | Recorded crashes 2001–mid-2024, as a density heatmap at low zoom and severity-coded points at high zoom. |
 | **Safe & unsafe spots** | Crowdsourced perceptions from the 2023 BikeSpot survey. Pin size scales with community endorsement. |
-| **Bicycle racks** | Public bike parking (CBD-focused). |
+| **Bicycle racks** | Public bike parking. |
 | **Parks** | Council-managed park polygons across the LGA. |
 | **Cycling to work (Census 2021)** | SA2 choropleth of journey-to-work cycling mode share, pre-computed from ABS Census data. |
-| **Electric micromobility routes** | Trip-count heatmap of e-scooter, e-bike, and other micromobility routes. Colour and line width scale logarithmically with trip count. |
+| **Electric micromobility trips** | Trip-count heatmap of e-scooter and e-bike routes. Colour and line width scale logarithmically with trip count. |
 
 ### Tools
 - **Route planner** — set a start and destination and get a cycling route (OpenRouteService, cycling-regular profile). Markers are draggable.
@@ -47,7 +47,7 @@ All data loads live from public APIs at page load, except BikeSpot (bundled loca
 | Suburb boundaries | BCC Opendatasoft (used to filter survey points to Brisbane) |
 | Safe & unsafe spots | BikeSpot 2023 survey — bundled pre-processed local file |
 | Cycling to work | ABS Census 2021, SDMX Data API (C21_G62_SA2) joined to ASGS SA2 boundaries — bundled pre-processed local file |
-| Electric micromobility | Micromobility trip routes — bundled pre-processed local file |
+| Electric micromobility | Ride Report Micromobility Index |
 | LGA boundary | QLD Spatial Information (Admin Boundaries Framework) |
 | Live traffic | QLDTraffic API v2 (via corsproxy.io) |
 | Routing | OpenRouteService Directions v2 (cycling-regular) |
